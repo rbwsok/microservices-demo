@@ -5,7 +5,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: # Позволяет запускать проверку вручную
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
 
 env:
   IMAGE_NAME: "online-boutique-frontend"
@@ -13,26 +18,6 @@ env:
   TARGET_URL: "http://your-vps-ip:80"
 
 jobs:
-  # Статический анализ (SAST)
-  sast:
-    runs-on: ubuntu-latest
-    steps:
-      # скачиваем код с github на сервер для проверки (В runner)
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: SAST (Semgrep)
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep \
-            semgrep scan --config=auto --json --output=/src/semgrep-sast-report.json
-        continue-on-error: true
-
-      - name: Upload SAST Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: sast-and-secrets-reports
-          path: |
-            semgrep-sast-report.json
 
   # Поиск секретов
   secrets:
@@ -42,17 +27,71 @@ jobs:
       - name: Checkout full history code
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # вся история (надо для Gitleaks)
+          fetch-depth: 0 # вся история
 
+      # Проверка репозитория на секреты. Gitleaks
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Проверка репозитория на секреты. Trivy
       - name: Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          scan-type: 'config'
-          hide-progress: false
-          format: 'table'
+          scan-type: 'fs'
+          scanners: 'secret'
           exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      # Проверка конфигураций
+      - name: Audit Kubernetes & Helm Configurations
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'config'
+          exit-code: '0'
+          format: 'sarif'
+          output: 'iac-results.sarif'
+
+      # Выгрузка результатов в GitHub Security Tab
+      - name: Upload IaC Misconfigurations to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'iac-results.sarif'
+          category: 'trivy-iac'
+
+  # Статический анализ (SAST)
+  sast:
+    runs-on: ubuntu-latest
+    needs: security_checks
+    steps:
+      # скачиваем код с github на сервер для проверки (В runner)
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Сканирование исходного кода
+      - name: Trivy SAST and SCA Scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln,misconfig'
+          format: 'sarif'
+          output: 'sast-results.sarif'
+          exit-code: '0'
+
+      # Выгрузка результатов в GitHub Code Scanning
+      - name: Upload SAST Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'sast-results.sarif'
+          category: 'trivy-sast'
+
+      # Сохранение сырого отчета в CI Артефакты
+      - name: Archive SAST Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-security-report
+          path: sast-results.sarif
+          retention-days: 7
