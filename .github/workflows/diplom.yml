@@ -55,7 +55,7 @@ jobs:
 
       # Выгрузка результатов в GitHub Security Tab
       - name: Upload IaC Misconfigurations to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'iac-results.sarif'
@@ -82,7 +82,7 @@ jobs:
 
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'sast-results.sarif'
