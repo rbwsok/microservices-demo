@@ -1,0 +1,58 @@
+name: Online Boutique DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Позволяет запускать проверку вручную
+
+env:
+  IMAGE_NAME: "online-boutique-frontend"
+  # URL вашего сервера в Yandex Cloud для DAST-тестов
+  TARGET_URL: "http://your-vps-ip:80"
+
+jobs:
+  # Статический анализ (SAST)
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      # скачиваем код с github на сервер для проверки (В runner)
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: SAST (Semgrep)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep \
+            semgrep scan --config=auto --json --output=/src/semgrep-sast-report.json
+        continue-on-error: true
+
+      - name: Upload SAST Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sast-and-secrets-reports
+          path: |
+            semgrep-sast-report.json
+
+  # Поиск секретов
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      # скачиваем код с github на сервер для проверки (В runner)
+      - name: Checkout full history code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # вся история (надо для Gitleaks)
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'config'
+          hide-progress: false
+          format: 'table'
+          exit-code: '1'
