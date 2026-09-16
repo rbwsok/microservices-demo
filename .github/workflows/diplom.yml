@@ -32,7 +32,7 @@ jobs:
 
       # Проверка репозитория на секреты. Trivy
       - name: Trivy
-        uses: aquasecurity/trivy-action@v0.74.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scanners: 'secret'
@@ -41,7 +41,7 @@ jobs:
 
       # Проверка конфигураций
       - name: Audit Kubernetes & Helm Configurations
-        uses: aquasecurity/trivy-action@v0.74.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
           exit-code: '0'
@@ -67,7 +67,7 @@ jobs:
 
       # Сканирование исходного кода. Trivy.
       - name: SAST (Trivy)
-        uses: aquasecurity/trivy-action@v0.74.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scanners: 'vuln,misconfig'
