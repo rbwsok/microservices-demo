@@ -18,7 +18,7 @@ env:
   TARGET_URL: "http://your-vps-ip:80"
 
 jobs:
-
+  ###############################################################
   # Поиск секретов
   secrets:
     runs-on: ubuntu-latest
@@ -60,7 +60,7 @@ jobs:
         with:
           sarif_file: 'iac-results.sarif'
           category: 'trivy-iac'
-
+  ###############################################################
   # Статический анализ (SAST)
   sast:
     runs-on: ubuntu-latest
@@ -70,8 +70,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      # Сканирование исходного кода
-      - name: Trivy SAST and SCA Scan
+      # Сканирование исходного кода. Trivy.
+      - name: SAST (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
@@ -81,17 +81,32 @@ jobs:
           exit-code: '0'
 
       # Выгрузка результатов в GitHub Code Scanning
-      - name: Upload SAST Results
+      - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'sast-results.sarif'
           category: 'trivy-sast'
 
-      # Сохранение сырого отчета в CI Артефакты
-      - name: Archive SAST Report
-        uses: actions/upload-artifact@v4
+      # Сохранение отчета в CI Артефакты (Trivy)
+      - name: Upload SAST Results (Trivy)
+        uses: actions/upload-artifact@v7
         with:
-          name: sast-security-report
+          name: sast-trivy-report
           path: sast-results.sarif
+          retention-days: 7
+
+      # Сканирование исходного кода. Semgrep.
+      - name: SAST (Semgrep)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep \
+            semgrep scan --config=auto --sarif-output=/src/semgrep-sast-report.sarif
+
+      # Сохранение отчета в CI Артефакты (Semgrep)
+      - name: Upload SAST Results (Semgrep)
+        uses: actions/upload-artifact@v7
+        with:
+          name: sast-semgrep-report
+          path: |
+            semgrep-sast-report.sarif
           retention-days: 7
