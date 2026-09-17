@@ -1,4 +1,4 @@
-name: Online Boutique DevSecOps Pipeline
+name: Online Boutique DevSecOps Pipeline 2
 
 on:
   push:
