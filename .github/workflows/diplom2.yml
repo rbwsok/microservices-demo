@@ -150,13 +150,13 @@ jobs:
     if: always()
     steps:
       - name: Download Artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v9
         with:
           name: sast-trivy-report
           path: ./reports
 
       - name: Download Artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v9
         with:
           name: sast-semgrep-report
           path: ./reports
