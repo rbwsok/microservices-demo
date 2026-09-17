@@ -116,7 +116,7 @@ jobs:
           path: semgrep-sast-report.sarif
           retention-days: 7
   ###############################################################
-  # Сканирование контейнеров (SCA)
+  # Сканирование контейнеров
   sca:
     needs: sast
     runs-on: ubuntu-latest
@@ -135,7 +135,8 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          scan-type: 'image'
           format: 'table'
           exit-code: '1' # Пайплайн упадет, если найдет критические уязвимости (Security Gateway)
           ignore-unfixed: true
-          severity: 'CRITICAL'
+          severity: 'HIGH,CRITICAL'
