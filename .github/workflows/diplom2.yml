@@ -1,4 +1,4 @@
-name: Online Boutique DevSecOps Pipeline 2
+name: Online Boutique DevSecOps Pipeline
 
 on:
   push:
@@ -13,8 +13,8 @@ permissions:
   security-events: write
 
 env:
-  IMAGE_NAME: "online-boutique-frontend"
-  
+  IMAGE_NAME: "online-boutique"
+
 jobs:
   ###############################################################
   # Поиск секретов
@@ -115,9 +115,10 @@ jobs:
           name: sast-semgrep-report
           path: semgrep-sast-report.sarif
           retention-days: 7
+
   ###############################################################
-  # Сканирование контейнеров
-  sca:
+  # Сборка и сканирование контейнеров
+  build:
     needs: sast
     runs-on: ubuntu-latest
     steps:
@@ -137,6 +138,63 @@ jobs:
           image-ref: '${{ env.IMAGE_NAME }}:${{ github.sha }}'
           scan-type: 'image'
           format: 'table'
-          exit-code: '1' # Пайплайн упадет, если найдет критические уязвимости (Security Gateway)
+          exit-code: '1'
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
+
+  ###############################################################
+  # Блокировка релиза
+  security_gateway:
+    runs-on: ubuntu-latest
+    needs: [secrets, sast, build]
+    if: always()
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: sast-trivy-report
+          path: ./reports
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: sast-semgrep-report
+          path: ./reports
+
+      # Остановка релиза при наличии критических уязвимостей
+      - name: Verify
+        id: check_policy
+        run: |
+          echo "Проверка критических уязвимостей"
+          
+          # Проверяем файлы отчета SAST на наличие критических уязвимостей (CRITICAL)
+          if grep -q '"severity": "CRITICAL"' ./reports/sast-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях."
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q '"severity": "CRITICAL"' ./reports/semgrep-sast-report.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях."
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+     # Структурированные комментарии в MR и выгрузка рекомендаций
+      - name: Comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const gateStatus = process.env.GATE_STATUS;
+            const isFailed = gateStatus === 'FAILED';
+            
+            const commentBody = `Gateway Report. Проверка:** ${isFailed ? ' **ЗАБЛОКИРОВАНО**' : ' **ПРОЙДЕНО**'}`
+     # Блокировка
+      - name: Enforce Release Termination
+        if: env.GATE_STATUS == 'FAILED'
+        run: |
+          echo "Завершение пайплайна с ошибкой"
+          exit 1            
