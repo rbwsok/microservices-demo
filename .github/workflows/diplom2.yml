@@ -39,25 +39,48 @@ jobs:
         with:
           scan-type: 'fs'
           scanners: 'secret'
-          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-secrets-results.sarif'
           severity: 'CRITICAL,HIGH'
+
+      # Выгрузка результатов в GitHub Code Scanning
+      - name: Upload
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-secrets-results.sarif'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-secrets-results
+          path: trivy-secrets-results.sarif
+          retention-days: 7          
 
       # Проверка конфигураций
       - name: Audit Kubernetes & Helm Configurations
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
-          exit-code: '0'
           format: 'sarif'
-          output: 'iac-results.sarif'
+          output: 'trivy-iac-results.sarif'
 
-      # Выгрузка результатов в GitHub Security Tab
+      # Выгрузка результатов в GitHub Code Scanning
       - name: Upload IaC Misconfigurations to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: 'iac-results.sarif'
-          category: 'trivy-iac'
+          sarif_file: 'trivy-iac-results.sarif'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-iac-results
+          path: trivy-iac-results.sarif
+          retention-days: 7    
+          
   ###############################################################
   # Статический анализ (SAST)
   sast:
