@@ -181,7 +181,7 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
-      - name: Generate Report File
+      - name: Создание отчета
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
@@ -189,7 +189,7 @@ jobs:
           echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
           
       # Комментарии в PR
-      - name: Update PR
+      - name: ОБновление
         if: env.GATE_STATUS == 'FAILED'
         uses: mshick/add-pr-comment@v3
         with:
