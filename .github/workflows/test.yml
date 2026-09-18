@@ -22,4 +22,5 @@ jobs:
           echo "test 1"
           echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
       - name: step2
+        run: |
           echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
