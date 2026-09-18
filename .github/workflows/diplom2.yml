@@ -186,6 +186,18 @@ jobs:
           name: sast-semgrep-report
           path: ./reports
 
+      - name: Download Secrets (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-secrets-results
+          path: ./reports
+
+      - name: Download IaC (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-iac-results
+          path: ./reports
+
       # Проверка на наличие уязвимостей
       - name: Verify
         run: |
@@ -202,6 +214,20 @@ jobs:
           if grep -q "CRITICAL" ./reports/semgrep-sast-report.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Semgrep)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/trivy-secrets-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены секреты в репозитории. (Trivy)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/trivy-iac-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены проблемы в конфигурации. (Trivy)"
           else
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
