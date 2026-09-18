@@ -1,0 +1,25 @@
+name: test Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest    
+    if: always()
+    steps:
+      - name: Verify
+        id: check_policy
+        run: |
+          echo "test 1"
+          echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+          echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
