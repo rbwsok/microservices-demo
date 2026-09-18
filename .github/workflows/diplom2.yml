@@ -168,31 +168,34 @@ jobs:
           echo "Проверка критических уязвимостей"
           
           # Проверяем файлы отчета SAST на наличие критических уязвимостей (CRITICAL)
-          if grep -q '"severity": "CRITICAL"' ./reports/sast-results.sarif; then
+          if grep -q "CRITICAL" ./reports/sast-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях."
           else
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
-          if grep -q '"severity": "CRITICAL"' ./reports/semgrep-sast-report.sarif; then
+          if grep -q "CRITICAL" ./reports/semgrep-sast-report.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях."
           else
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
+      # Остановка релиза при наличии критических уязвимостей
+      - name: var
+        run: |
           echo "Значение переменной: ${{ env.GATE_STATUS }}"
-
+                    
      # Структурированные комментарии в MR и выгрузка рекомендаций
-#      - name: Comment
-#        if: github.event_name == 'pull_request' && always()
-#        uses: actions/github-script@v7
-#        with:
-#          script: |
-#            const gateStatus = process.env.GATE_STATUS;
-#            const isFailed = gateStatus === 'FAILED';           
-#            const commentBody = `Gateway Report. Проверка:** ${isFailed ? ' **ЗАБЛОКИРОВАНО**' : ' **ПРОЙДЕНО**'}`
+      - name: Comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const gateStatus = process.env.GATE_STATUS;
+            const isFailed = gateStatus === 'FAILED';           
+            const commentBody = `Gateway Report. Проверка:** ${isFailed ? ' **ЗАБЛОКИРОВАНО**' : ' **ПРОЙДЕНО**'}`
             
      # Блокировка
       - name: Enforce Release Termination
