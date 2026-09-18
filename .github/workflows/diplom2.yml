@@ -181,7 +181,7 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
-      - name: Создание отчета
+      - name: Create report
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
@@ -189,7 +189,7 @@ jobs:
           echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
           
       # Комментарии в PR
-      - name: ОБновление
+      - name: Update
         if: env.GATE_STATUS == 'FAILED'
         uses: mshick/add-pr-comment@v3
         with:
@@ -199,7 +199,7 @@ jobs:
           refresh-message-position: true
            
      # Блокировка
-      - name: Остановка
+      - name: Block
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "Остановка пайплайна из-за критических уязвимостей"
