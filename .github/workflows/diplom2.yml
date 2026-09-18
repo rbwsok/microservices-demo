@@ -19,7 +19,7 @@ jobs:
   ###############################################################
   # Поиск секретов
   secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
       - name: Checkout full history code
@@ -61,7 +61,7 @@ jobs:
   ###############################################################
   # Статический анализ (SAST)
   sast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: secrets
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
@@ -120,7 +120,7 @@ jobs:
   # Сборка и сканирование контейнеров
   build:
     needs: sast
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -145,28 +145,28 @@ jobs:
   ###############################################################
   # Блокировка релиза
   security_gateway:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [secrets, sast, build]
     if: always()
     steps:
-      - name: Download Artifact
+      - name: Download Artifact (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: sast-trivy-report
           path: ./reports
 
-      - name: Download Artifact
+      - name: Download Artifact (Semgrep)
         uses: actions/download-artifact@v8
         with:
           name: sast-semgrep-report
           path: ./reports
 
-      # Остановка релиза при наличии критических уязвимостей
+      # Проверка на наличие уязвимостей
       - name: Verify
         run: |
           echo "Проверка критических уязвимостей"
           
-          # Проверяем файлы отчета SAST на наличие критических уязвимостей (CRITICAL)
+          # Проверяем файлы отчетов SAST на наличие критических уязвимостей
           if grep -q "CRITICAL" ./reports/sast-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Trivy)"
@@ -181,17 +181,12 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
-      # Остановка релиза при наличии критических уязвимостей
-      - name: var
-        run: |
-          echo "Значение переменной: ${{ env.GATE_STATUS }}"
-
       - name: Generate Report File
+        if: env.GATE_STATUS == 'FAILED'
         run: |
-          echo "### 📊 Результаты проверки кода" > summary.md
-          echo "- **Статус:** Все тесты пройдены успешно ✅" >> summary.md
-          echo "- **Время обновления:** %NOW%" >> summary.md
-          echo "Подробный отладочный лог сборки" > build-debug.log
+          echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
+          echo "- Время обновления: %NOW%" >> summary.md
+          echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
           
       # Комментарии в PR
       - name: Update PR
@@ -200,11 +195,9 @@ jobs:
         with:
           message-id: qa-summary-report
           message-path: summary.md
-          attach-path: build-debug.log
+          attach-path: comments.md
           refresh-message-position: true
-          
-          
-            
+           
      # Блокировка
       - name: Остановка
         if: env.GATE_STATUS == 'FAILED'
