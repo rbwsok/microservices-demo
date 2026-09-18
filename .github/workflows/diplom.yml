@@ -12,11 +12,14 @@ permissions:
   pull-requests: write
   security-events: write
 
+env:
+  IMAGE_NAME: "online-boutique"
+
 jobs:
   ###############################################################
   # Поиск секретов
   secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
       - name: Checkout full history code
@@ -36,7 +39,7 @@ jobs:
         with:
           scan-type: 'fs'
           scanners: 'secret'
-          exit-code: '1'
+          exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
       # Проверка конфигураций
@@ -58,7 +61,7 @@ jobs:
   ###############################################################
   # Статический анализ (SAST)
   sast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: secrets
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
@@ -112,3 +115,92 @@ jobs:
           name: sast-semgrep-report
           path: semgrep-sast-report.sarif
           retention-days: 7
+
+  ###############################################################
+  # Сборка и сканирование контейнеров
+  build:
+    needs: sast
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Сборка Docker-образа
+      - name: Build Docker Image
+        run: |
+          cd src/frontend/
+          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+      # Сканирование уязвимостей в контейнере (SCA)
+      - name: Container Scan (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          scan-type: 'image'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  ###############################################################
+  # Блокировка релиза
+  security_gateway:
+    runs-on: ubuntu-24.04
+    needs: [secrets, sast, build]
+    if: always()
+    steps:
+      - name: Download Artifact (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: sast-trivy-report
+          path: ./reports
+
+      - name: Download Artifact (Semgrep)
+        uses: actions/download-artifact@v8
+        with:
+          name: sast-semgrep-report
+          path: ./reports
+
+      # Проверка на наличие уязвимостей
+      - name: Verify
+        run: |
+          echo "Проверка критических уязвимостей"
+          
+          # Проверяем файлы отчетов SAST на наличие критических уязвимостей
+          if grep -q "CRITICAL" ./reports/sast-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Trivy)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/semgrep-sast-report.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Semgrep)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+      - name: Create report
+        if: env.GATE_STATUS == 'FAILED'
+        run: |
+          echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
+          echo "- Время обновления: %NOW%" >> summary.md
+          echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
+          
+      # Комментарии в PR
+      - name: Update
+        if: env.GATE_STATUS == 'FAILED'
+        uses: mshick/add-pr-comment@v3
+        with:
+          message-id: qa-summary-report
+          message-path: summary.md
+          attach-path: comments.md
+          refresh-message-position: true
+           
+     # Блокировка
+      - name: Block
+        if: env.GATE_STATUS == 'FAILED'
+        run: |
+          echo "Остановка пайплайна из-за критических уязвимостей"
+          exit 1            
