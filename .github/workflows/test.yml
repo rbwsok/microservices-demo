@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest    
     if: always()
     steps:
-      - name: Verify
-        id: check_policy
+      - name: step1
         run: |
           echo "test 1"
           echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+      - name: step2
           echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
