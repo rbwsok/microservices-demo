@@ -206,8 +206,8 @@ jobs:
           
             
      # Блокировка
-      - name: Enforce Release Termination
+      - name: Остановка
         if: env.GATE_STATUS == 'FAILED'
         run: |
-          echo "Завершение пайплайна с ошибкой"
+          echo "Остановка пайплайна из-за критических уязвимостей"
           exit 1            
