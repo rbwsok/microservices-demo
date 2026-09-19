@@ -12,9 +12,6 @@ permissions:
   pull-requests: write
   security-events: write
 
-env:
-  IMAGE_NAME: "online-boutique"
-
 jobs:
   ###############################################################
   # Поиск секретов
@@ -39,27 +36,52 @@ jobs:
         with:
           scan-type: 'fs'
           scanners: 'secret'
-          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-secrets-results.sarif'
           severity: 'CRITICAL,HIGH'
+
+      # Выгрузка результатов в GitHub Code Scanning
+      - name: Upload
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-secrets-results.sarif'
+          category: 'trivy-secrets'
+          
+      # Сохранение отчета в CI Артефакты
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-secrets-results
+          path: trivy-secrets-results.sarif
+          retention-days: 7          
 
       # Проверка конфигураций
       - name: Audit Kubernetes & Helm Configurations
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
-          exit-code: '0'
           format: 'sarif'
-          output: 'iac-results.sarif'
+          output: 'trivy-iac-results.sarif'
 
-      # Выгрузка результатов в GitHub Security Tab
+      # Выгрузка результатов в GitHub Code Scanning
       - name: Upload IaC Misconfigurations to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: 'iac-results.sarif'
+          sarif_file: 'trivy-iac-results.sarif'
           category: 'trivy-iac'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-iac-results
+          path: trivy-iac-results.sarif
+          retention-days: 7    
+          
   ###############################################################
-  # Статический анализ (SAST)
+  # Статический анализ
   sast:
     runs-on: ubuntu-24.04
     needs: secrets
@@ -75,7 +97,7 @@ jobs:
           scan-type: 'fs'
           scanners: 'vuln,misconfig'
           format: 'sarif'
-          output: 'sast-results.sarif'
+          output: 'trivy-sast-results.sarif'
           exit-code: '0'
 
       # Выгрузка результатов в GitHub Code Scanning
@@ -83,7 +105,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: 'sast-results.sarif'
+          sarif_file: 'trivy-sast-results.sarif'
           category: 'trivy-sast'
 
       # Сохранение отчета в CI Артефакты (Trivy)
@@ -91,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: sast-trivy-report
-          path: sast-results.sarif
+          path: trivy-sast-results.sarif
           retention-days: 7
 
       # Сканирование исходного кода. Semgrep.
@@ -112,15 +134,24 @@ jobs:
       - name: Upload SAST Results (Semgrep)
         uses: actions/upload-artifact@v7
         with:
-          name: sast-semgrep-report
+          name: semgrep-sast-report
           path: semgrep-sast-report.sarif
           retention-days: 7
 
   ###############################################################
   # Сборка и сканирование контейнеров
-  build:
+  check_images:
     needs: sast
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [
+        #"cartservice",
+          "adservice", "checkoutservice", "currencyservice",
+          "emailservice", "frontend", "loadgenerator", "paymentservice",
+          "productcatalogservice", "recommendationservice", "shippingservice"
+        ]    
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -129,24 +160,64 @@ jobs:
       - name: Build Docker Image
         run: |
           cd src/frontend/
-          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker build -t ${{ matrix.service }}:${{ github.sha }} .
 
       # Сканирование уязвимостей в контейнере
       - name: Container Scan (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: '${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          image-ref: '${{ matrix.service }}:${{ github.sha }}'
           scan-type: 'image'
-          format: 'table'
-          exit-code: '0'
+          format: 'sarif'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          severity: 'HIGH,CRITICAL'          
+          output: '${{ matrix.service }}-trivy-image-results.sarif'
+          exit-code: '0'
 
+      # Выгрузка результатов в GitHub Code Scanning
+      - name: Upload Image Results (Trivy)
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: '${{ matrix.service }}-trivy-image-results.sarif'
+          category: '${{ matrix.service }}-trivy-image'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload Image Results (Trivy)
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-trivy-image-results
+          path: ${{ matrix.service }}-trivy-image-results.sarif
+          retention-days: 7          
+          
+      # Проверка Dockerfile на best practices
+      - name: Lint Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: src/${{ matrix.service }}/Dockerfile
+          format: sarif
+          output-file: hadolint-${{ matrix.service }}.sarif
+          no-fail: true
+
+      - name: Upload Results (Hadolint)
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'hadolint-${{ matrix.service }}.sarif'
+          category: 'hadolint-${{ matrix.service }}'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload Results (Hadolint)
+        uses: actions/upload-artifact@v7
+        with:
+          name: hadolint-${{ matrix.service }}
+          path: hadolint-${{ matrix.service }}.sarif
+          retention-days: 7                    
   ###############################################################
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, build]
+    needs: [secrets, sast, check_images]
     if: always()
     steps:
       - name: Download Artifact (Trivy)
@@ -161,13 +232,25 @@ jobs:
           name: sast-semgrep-report
           path: ./reports
 
+      - name: Download Secrets (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-secrets-results
+          path: ./reports
+
+      - name: Download IaC (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-iac-results
+          path: ./reports
+
       # Проверка на наличие уязвимостей
       - name: Verify
         run: |
           echo "Проверка критических уязвимостей"
           
           # Проверяем файлы отчетов SAST на наличие критических уязвимостей
-          if grep -q "CRITICAL" ./reports/sast-results.sarif; then
+          if grep -q "CRITICAL" ./reports/trivy-sast-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Trivy)"
           else
@@ -177,6 +260,20 @@ jobs:
           if grep -q "CRITICAL" ./reports/semgrep-sast-report.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Semgrep)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/trivy-secrets-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены секреты в репозитории. (Trivy)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/trivy-iac-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены проблемы в конфигурации. (Trivy)"
           else
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
