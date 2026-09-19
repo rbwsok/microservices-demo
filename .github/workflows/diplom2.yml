@@ -192,17 +192,14 @@ jobs:
           docker_name: 'owasp/zap2docker-stable'
 
       - name: Convert ZAP JSON to SARIF
-        uses: Snyk/zap-to-sarif@master
-        if: always()
-        with:
-          zap-json: ./zap_out.json
-          output: ./zap-report.sarif
-
+        uses: SvanBoxel/zaproxy-to-ghas@v1.0.2
+        continue-on-error: true
+          
       - name: Upload SARIF file to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: ./zap-report.sarif
+          sarif_file: results.sarif
           category: zap-dast-${{ matrix.service }}          
 
       # чистим за собой
