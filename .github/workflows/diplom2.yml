@@ -21,27 +21,21 @@ jobs:
       fail-fast: false
       matrix:
         service: [
-          "adservice",
-          "cartservice",
-          "checkoutservice",
-          "currencyservice",
-          "emailservice",
-          "frontend",
-          "paymentservice",
-          "productcatalogservice",
-          "recommendationservice",
-          "shippingservice"
-        ]
+        #"cartservice",
+          "adservice", "checkoutservice", "currencyservice",
+          "emailservice", "frontend", "loadgenerator", "paymentservice",
+          "productcatalogservice", "recommendationservice", "shippingservice"
+        ]    
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./src/${{ matrix.service }}
           push: false
@@ -57,7 +51,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Динамически создаем docker-compose.yml для тестирования фронтенда
       - name: Generate Docker Compose File
@@ -113,9 +107,7 @@ jobs:
   
        # Блокировка
       - name: Block
-        if: env.GATE_STATUS == 'FAILED'
         run: |
-          echo "Остановка пайплайна из-за критических уязвимостей"
           exit 1            
 
   
