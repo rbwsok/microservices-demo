@@ -53,12 +53,15 @@ jobs:
       - name: buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and Load Docker Image Local
-        uses: docker/build-push-action@v5
+      - name: Build adservice Service
+        uses: docker/build-push-action@v7
         with:
+          context: ./src/${{ matrix.service }}
+          file: ./src/${{ matrix.service }}/Dockerfile
+          tags: boutique-${{ matrix.service }}:latest
+          outputs: type=docker
           push: false
           load: true
-          tags: boutique-${{ matrix.service }}:latest
           
       # Поднимаем приложение. Для DAST нам нужен работающий Frontend и минимальный бэкенд.
       # Используем официальный docker-compose.yaml из репозитория Google Online Boutique.
@@ -169,6 +172,10 @@ jobs:
   secrets:
     runs-on: ubuntu-24.04
     steps:
+      - name: Block
+        run: |
+          exit 1            
+
       # скачиваем код с github на сервер для проверки (В runner)
       - name: Checkout full history code
         uses: actions/checkout@v7
