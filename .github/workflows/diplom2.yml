@@ -52,64 +52,68 @@ jobs:
   dast:
     name: OWASP ZAP DAST Analysis
     runs-on: ubuntu-24.04
+    # Запускаем после того, как убедились, что все сервисы собираются
     needs: build-services 
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      # Создаем локальный Kubernetes-кластер внутри Docker (Kind)
-      - name: Create KinD Cluster
-        uses: helm/kind-action@v1.10.0
-        with:
-          cluster_name: online-boutique
-
-      # Устанавливаем Skaffold — родной инструмент сборки для этого проекта
-      # Устанавливаем Skaffold через правильный GitHub-релиз
-      - name: Install Skaffold
+      # Динамически создаем docker-compose.yml для тестирования фронтенда
+      - name: Generate Docker Compose File
         run: |
-          curl -Lo skaffold https://github.com
-          chmod +x skaffold
-          sudo mv skaffold /usr/local/bin/
-          skaffold version # Проверяем, что бинарник корректный
+          cat <<EOF > docker-compose.yml
+          version: '3.8'
+          services:
+            frontend:
+              build:
+                context: ./src/frontend
+              ports:
+                - "8080:8080"
+              environment:
+                - PORT=8080
+                - PRODUCT_CATALOG_SERVICE_ADDR=mock:8080 # Заглушки, чтобы фронтенд запустился
+                - CURRENCY_SERVICE_ADDR=mock:8080
+                - CART_SERVICE_ADDR=mock:8080
+                - RECOMMENDATION_SERVICE_ADDR=mock:8080
+                - SHIPPING_SERVICE_ADDR=mock:8080
+                - CHECKOUT_SERVICE_ADDR=mock:8080
+                - AD_SERVICE_ADDR=mock:8080
+                - ENV_PLATFORM=local
+          EOF
 
-      # Разворачиваем микросервисы локально.
-      # Флаг --default-repo=local принуждает skaffold собирать образы прямо внутри ноды KinD
-      - name: Deploy Online Boutique via Skaffold
+      # Поднимаем сгенерированный Docker Compose
+      - name: Start Frontend via Docker Compose
         run: |
-          skaffold run --tag latest --default-repo=local
-
-      # Пробрасываем порт фронтенда из кластера на localhost раннера
-      - name: Port-Forward Frontend
-        run: |
-          kubectl port-forward deployment/frontend 8080:8080 &
-          echo "Waiting for port-forward to establish..."
+          docker compose up -d --build
+          echo "Waiting for frontend to spin up..."
           sleep 15
 
-      # Проверяем доступность
+      # Проверяем, отвечает ли порт приложения
       - name: Verify Frontend Availability
         run: |
-          curl -f http://localhost:8080
-    
-      # Запуск OWASP ZAP для DAST анализа хоста localhost:8080
+          curl -I http://localhost:8080 || exit 1
+
+      # Локальный DAST-анализ с помощью OWASP ZAP
       - name: OWASP ZAP Baseline Scan (DAST)
-        uses: zaproxy/action-baseline@v0.13.0
+        uses: zaproxy/action-baseline@v0.12.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: 'http://localhost:8080'
           fail_action: false
           cmd_options: '-a'
-  
+
+      # Очистка ресурсов
+      - name: Stop Infrastructure
+        if: always()
+        run: docker compose down        
+
+        
        # Блокировка
       - name: Block
         run: |
           exit 1            
 
-  
-  
-  
-  
-  
   ###############################################################
   # Поиск секретов
   secrets:
