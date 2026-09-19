@@ -62,8 +62,27 @@ jobs:
           outputs: type=docker
           push: false
           load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           
-      # Поднимаем приложение. Для DAST нам нужен работающий Frontend и минимальный бэкенд.
+      - name: Start Application for Scan
+        run: |
+          docker run -d -p 8080:8080 --name boutique-${{ matrix.service }} boutique-${{ matrix.service }}:local
+          sleep 10
+          curl -I http://localhost:8080
+
+      # запускаем сканер
+      - name: OWASP ZAP
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:8080'
+          fail_action: false
+          cmd_options: '-a'
+          
+          
+          
+          # Поднимаем приложение. Для DAST нам нужен работающий Frontend и минимальный бэкенд.
       # Используем официальный docker-compose.yaml из репозитория Google Online Boutique.
       - name: Start Online Boutique Locally
         run: |
