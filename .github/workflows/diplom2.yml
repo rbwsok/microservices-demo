@@ -191,7 +191,7 @@ jobs:
         if: always()
         with:
           name: zap-dast-report
-          path: 'zap_report.html'
+          path: 'zap_scan.html'
           retention-days: 7
 
           
