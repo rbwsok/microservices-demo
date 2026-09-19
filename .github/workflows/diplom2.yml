@@ -147,7 +147,8 @@ jobs:
       fail-fast: false
       matrix:
         service: [
-          "adservice", "cartservice", "checkoutservice", "currencyservice",
+        #"cartservice",
+          "adservice", "checkoutservice", "currencyservice",
           "emailservice", "frontend", "loadgenerator", "paymentservice",
           "productcatalogservice", "recommendationservice", "shippingservice"
         ]    
@@ -179,7 +180,7 @@ jobs:
         if: always()
         with:
           sarif_file: '${{ matrix.service }}-trivy-image-results.sarif'
-          category: 'trivy-image'
+          category: '${{ matrix.service }}-trivy-image'
           
       # Проверка Dockerfile на best practices
       - name: Lint Dockerfile (Hadolint)
@@ -190,12 +191,12 @@ jobs:
           output-file: hadolint-${{ matrix.service }}.sarif
           no-fail: true
 
-#      - name: Upload Results (Hadolint)
-#        uses: github/codeql-action/upload-sarif@v4
-#        if: always()
-#        with:
-#          sarif_file: 'hadolint-${{ matrix.service }}.sarif'
-#          category: 'hadolint-${{ matrix.service }}'
+      - name: Upload Results (Hadolint)
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'hadolint-${{ matrix.service }}.sarif'
+          category: 'hadolint-${{ matrix.service }}'
   ###############################################################
   # Блокировка релиза
   security_gateway:
