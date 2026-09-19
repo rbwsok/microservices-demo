@@ -13,7 +13,7 @@ permissions:
   security-events: write
 
 jobs:
-  # 1. Матричная сборка для проверки Docker-манифестов (как и просили)
+  # 1. Матричная сборка для валидации Dockerfile (как и требовалось)
   build-services:
     name: Build Service
     runs-on: ubuntu-24.04
@@ -21,11 +21,16 @@ jobs:
       fail-fast: false
       matrix:
         service: [
-        #"cartservice",
-          "adservice", "checkoutservice", "currencyservice",
-          "emailservice", "frontend", "loadgenerator", "paymentservice",
-          "productcatalogservice", "recommendationservice", "shippingservice"
-        ]    
+          "adservice",
+          "checkoutservice",
+          "currencyservice",
+          "emailservice",
+          "frontend",
+          "paymentservice",
+          "productcatalogservice",
+          "recommendationservice",
+          "shippingservice"
+        ]
     
     steps:
       - name: Checkout Code
@@ -34,7 +39,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Docker Image
+      - name: Build Docker Image (Dry-Run)
         uses: docker/build-push-action@v7
         with:
           context: ./src/${{ matrix.service }}
@@ -43,7 +48,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # 2. Создание окружения "на лету" и запуск DAST
+  # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
   dast:
     name: OWASP ZAP DAST Analysis
     runs-on: ubuntu-24.04
@@ -53,57 +58,45 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      # Динамически создаем docker-compose.yml для тестирования фронтенда
-      - name: Generate Docker Compose File
-        run: |
-          cat <<EOF > docker-compose.yml
-          version: '3.8'
-          services:
-            frontend:
-              build:
-                context: ./src/frontend
-              ports:
-                - "8080:8080"
-              environment:
-                - PORT=8080
-                - PRODUCT_CATALOG_SERVICE_ADDR=mock:8080 # Заглушки, чтобы фронтенд запустился
-                - CURRENCY_SERVICE_ADDR=mock:8080
-                - CART_SERVICE_ADDR=mock:8080
-                - RECOMMENDATION_SERVICE_ADDR=mock:8080
-                - SHIPPING_SERVICE_ADDR=mock:8080
-                - CHECKOUT_SERVICE_ADDR=mock:8080
-                - AD_SERVICE_ADDR=mock:8080
-                - ENV_PLATFORM=local
-          EOF
+      # Создаем локальный Kubernetes-кластер внутри Docker (Kind)
+      - name: Create KinD Cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: online-boutique
 
-      # Поднимаем сгенерированный Docker Compose
-      - name: Start Frontend via Docker Compose
+      # Устанавливаем Skaffold — родной инструмент сборки для этого проекта
+      - name: Install Skaffold
         run: |
-          docker compose up -d --build
-          echo "Waiting for frontend to spin up..."
-          sleep 15
+          curl -Lo skaffold https://googleapis.com
+          chmod +x skaffold
+          sudo mv skaffold /usr/local/bin/
 
-      # Проверяем, отвечает ли порт приложения
+      # Разворачиваем все микросервисы в кластер. 
+      # Skaffold сам соберет образы внутри Kind и применит K8s-манифесты.
+      - name: Deploy Online Boutique via Skaffold
+        run: |
+          skaffold run --tag latest
+
+      # Пробрасываем порт фронтенда из кластера на localhost раннера
+      - name: Port-Forward Frontend
+        run: |
+          kubectl port-forward deployment/frontend 8080:8080 &
+          echo "Waiting for port-forward to establish..."
+          sleep 10
+
+      # Проверяем доступность (теперь вернет 200 OK, так как все зависимости живы)
       - name: Verify Frontend Availability
         run: |
-          curl -I http://localhost:8080 || exit 1
+          curl -f http://localhost:8080
 
-      # Локальный DAST-анализ с помощью OWASP ZAP
+      # Запуск OWASP ZAP для DAST анализа хоста localhost:8080
       - name: OWASP ZAP Baseline Scan (DAST)
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.13.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: 'http://localhost:8080'
           fail_action: false
           cmd_options: '-a'
-
-      # Очистка ресурсов
-      - name: Stop Infrastructure
-        if: always()
-        run: docker compose down
-
-
-  
   
        # Блокировка
       - name: Block
