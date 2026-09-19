@@ -16,7 +16,7 @@ jobs:
   # 1. Матричная сборка для проверки Docker-манифестов (как и просили)
   build-services:
     name: Build Service
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +46,7 @@ jobs:
   # 2. Создание окружения "на лету" и запуск DAST
   dast:
     name: OWASP ZAP DAST Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-services 
 
     steps:
@@ -209,7 +209,7 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-sast-results.sarif'
-          category: 'trivy-sast'
+          category: 'trivy-sast-results'
 
       # Сохранение отчета в CI Артефакты (Trivy)
       - name: Upload SAST Results (Trivy)
@@ -321,7 +321,7 @@ jobs:
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, build_scan_images]
+    needs: [secrets, sast, build_scan_images, dast]
     if: always()
     steps:
       - name: Download Artifact (Trivy)
