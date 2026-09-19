@@ -13,10 +13,115 @@ permissions:
   security-events: write
 
 jobs:
+
+  name: "DevSecOps: DAST & Docker Build Pipeline"
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 1. Сборка всех микросервисов через матрицу стратегий
+  build-services:
+    name: Build & Lint Service
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Список сервисов из репозитория Google Online Boutique
+        service: [
+          "adservice",
+          "cartservice",
+          "checkoutservice",
+          "currencyservice",
+          "emailservice",
+          "frontend",
+          "loadgenerator",
+          "paymentservice",
+          "productcatalogservice",
+          "recommendationservice",
+          "shippingservice"
+        ]
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Сборка без отправки в реестр (локальная проверка Dockerfile)
+      - name: Build Docker Image (Dry-Run)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/${{ matrix.service }}
+          push: false
+          tags: boutique-${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 2. Локальное развертывание приложения и DAST-анализ с OWASP ZAP
+  dast:
+    name: OWASP ZAP DAST Analysis
+    runs-on: ubuntu-latest
+    # Запускаем после того, как убедились, что все сервисы собираются
+    needs: build-services 
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Поднимаем все окружение Google Online Boutique локально на раннере.
+      # Используем готовый docker-compose.yml из репозитория проекта.
+      - name: Start Infrastructure via Docker Compose
+        run: |
+          docker compose up -d
+          echo "Waiting for services to be ready..."
+          sleep 30 # Даем время микросервисам и базе данных инициализироваться
+
+      # Проверяем, что фронтенд доступен локально
+      - name: Verify Frontend Availability
+        run: |
+          curl -f http://localhost:8080 || exit 1
+
+      # Запуск OWASP ZAP для DAST анализа.
+      # Работает локально в Docker-контейнере, сканирует хост-сеть раннера.
+      - name: OWASP ZAP Baseline Scan (DAST)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Сканируем фронтенд, так как он принимает внешний трафик
+          target: 'http://localhost:8080' 
+          # Правило для перевода билда в fail при обнаружении критических уязвимостей (опционально)
+          fail_action: false 
+          cmd_options: '-a' # Включаем альфа-правила сканирования для полноты картины
+
+      # Принудительно тушим контейнеры для очистки ресурсов раннера
+      - name: Stop Infrastructure
+        if: always()
+        run: docker compose down
+
+  
+  
+       # Блокировка
+      - name: Block
+        if: env.GATE_STATUS == 'FAILED'
+        run: |
+          echo "Остановка пайплайна из-за критических уязвимостей"
+          exit 1            
+
+  
+  
+  
+  
+  
   ###############################################################
   # Поиск секретов
   secrets:
     runs-on: ubuntu-24.04
+    needs: dast
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
       - name: Checkout full history code
@@ -140,7 +245,7 @@ jobs:
 
   ###############################################################
   # Сборка и сканирование контейнеров
-  check_images:
+  build_scan_images:
     needs: sast
     runs-on: ubuntu-24.04
     strategy:
@@ -218,7 +323,7 @@ jobs:
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, check_images]
+    needs: [secrets, sast, build_scan_images]
     if: always()
     steps:
       - name: Download Artifact (Trivy)
