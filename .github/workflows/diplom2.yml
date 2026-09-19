@@ -204,7 +204,7 @@ jobs:
         uses: SvanBoxel/zaproxy-to-ghas@v1.0.2        
         continue-on-error: true
         with:
-          zap_json_report: 'alertjson.json'
+          zap_json_report: 'zap_report.json'
           
       - name: Upload SARIF file to GitHub Security Tab
         uses: github/codeql-action/upload-sarif@v4
