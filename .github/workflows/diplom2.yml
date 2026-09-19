@@ -143,7 +143,7 @@ jobs:
 
   ###############################################################
   # Сборка и сканирование контейнеров
-  build:
+  dact:
     needs: sast
     runs-on: ubuntu-24.04
     steps:
@@ -226,21 +226,12 @@ jobs:
 #          path: image-trivy-report.sarif
 #          retention-days: 7
 
-  ###############################################################
-  # Динамический анализ
-  dast:
-    runs-on: ubuntu-24.04
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
 
   ###############################################################
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, build]
+    needs: [secrets, sast, dact]
     if: always()
     steps:
       - name: Download Artifact (Trivy)
