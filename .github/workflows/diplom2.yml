@@ -112,7 +112,7 @@ jobs:
       - name: Upload SAST Results (Trivy)
         uses: actions/upload-artifact@v7
         with:
-          name: sast-trivy-report
+          name: trivy-sast-results
           path: trivy-sast-results.sarif
           retention-days: 7
 
@@ -120,22 +120,22 @@ jobs:
       - name: SAST (Semgrep)
         run: |
           docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep \
-            semgrep scan --config=auto --sarif-output=/src/semgrep-sast-report.sarif
+            semgrep scan --config=auto --sarif-output=/src/semgrep-sast-results.sarif
 
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: 'semgrep-sast-report.sarif'
-          category: 'semgrep-sast'
+          sarif_file: 'semgrep-sast-results.sarif'
+          category: 'semgrep-sast-results'
 
       # Сохранение отчета в CI Артефакты (Semgrep)
       - name: Upload SAST Results (Semgrep)
         uses: actions/upload-artifact@v7
         with:
-          name: semgrep-sast-report
-          path: semgrep-sast-report.sarif
+          name: semgrep-sast-results
+          path: semgrep-sast-results.sarif
           retention-days: 7
 
   ###############################################################
@@ -224,13 +224,13 @@ jobs:
       - name: Download Artifact (Trivy)
         uses: actions/download-artifact@v8
         with:
-          name: sast-trivy-report
+          name: trivy-sast-results
           path: ./reports
 
       - name: Download Artifact (Semgrep)
         uses: actions/download-artifact@v8
         with:
-          name: sast-semgrep-report
+          name: semgrep-sast-results
           path: ./reports
 
       - name: Download Secrets (Trivy)
@@ -258,7 +258,7 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
-          if grep -q "CRITICAL" ./reports/semgrep-sast-report.sarif; then
+          if grep -q "CRITICAL" ./reports/semgrep-sast-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Semgrep)"
           else
