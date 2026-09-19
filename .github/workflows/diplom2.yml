@@ -13,16 +13,6 @@ permissions:
   security-events: write
 
 jobs:
-
-  name: "DevSecOps: DAST & Docker Build Pipeline"
-
-on:
-  push:
-    branches: [ "main", "develop" ]
-  pull_request:
-    branches: [ "main" ]
-
-jobs:
   # 1. Сборка всех микросервисов через матрицу стратегий
   build-services:
     name: Build & Lint Service
