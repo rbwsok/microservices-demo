@@ -18,7 +18,7 @@ jobs:
   secrets:
     runs-on: ubuntu-24.04
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # скачиваем код
       - name: Checkout full history code
         uses: actions/checkout@v7
         with:
@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: secrets
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # скачиваем код
       - name: Checkout code
         uses: actions/checkout@v7
 
