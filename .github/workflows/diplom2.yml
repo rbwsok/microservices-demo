@@ -65,30 +65,32 @@ jobs:
           cluster_name: online-boutique
 
       # Устанавливаем Skaffold — родной инструмент сборки для этого проекта
+      # Устанавливаем Skaffold через правильный GitHub-релиз
       - name: Install Skaffold
         run: |
-          curl -Lo skaffold https://googleapis.com
+          curl -Lo skaffold https://github.com
           chmod +x skaffold
           sudo mv skaffold /usr/local/bin/
+          skaffold version # Проверяем, что бинарник корректный
 
-      # Разворачиваем все микросервисы в кластер. 
-      # Skaffold сам соберет образы внутри Kind и применит K8s-манифесты.
+      # Разворачиваем микросервисы локально.
+      # Флаг --default-repo=local принуждает skaffold собирать образы прямо внутри ноды KinD
       - name: Deploy Online Boutique via Skaffold
         run: |
-          skaffold run --tag latest
+          skaffold run --tag latest --default-repo=local
 
       # Пробрасываем порт фронтенда из кластера на localhost раннера
       - name: Port-Forward Frontend
         run: |
           kubectl port-forward deployment/frontend 8080:8080 &
           echo "Waiting for port-forward to establish..."
-          sleep 10
+          sleep 15
 
-      # Проверяем доступность (теперь вернет 200 OK, так как все зависимости живы)
+      # Проверяем доступность
       - name: Verify Frontend Availability
         run: |
           curl -f http://localhost:8080
-
+    
       # Запуск OWASP ZAP для DAST анализа хоста localhost:8080
       - name: OWASP ZAP Baseline Scan (DAST)
         uses: zaproxy/action-baseline@v0.13.0
