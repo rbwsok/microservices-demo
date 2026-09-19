@@ -163,7 +163,17 @@ jobs:
         uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: src/${{ matrix.service }}/Dockerfile
+          format: sarif
+          output-file: hadolint-${{ matrix.service }}.sarif
+          no-fail: true
 
+      - name: Upload Results (Hadolint)
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'hadolint-${{ matrix.service }}.sarif'
+          category: 'hadolint-${{ matrix.service }}'
+                    
       # Сборка Docker-образа
       - name: buildx
         uses: docker/setup-buildx-action@v4
