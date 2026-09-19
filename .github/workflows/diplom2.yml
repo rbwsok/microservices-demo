@@ -170,7 +170,7 @@ jobs:
 
       # запускаем сканер
       - name: OWASP ZAP
-        uses: zaproxy/action-full-scan@v0.15.0
+        uses: zaproxy/action-full-scan@v0.14.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: 'http://localhost:8080'
