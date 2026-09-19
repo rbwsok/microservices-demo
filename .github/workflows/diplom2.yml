@@ -134,7 +134,7 @@ jobs:
       - name: Upload SAST Results (Semgrep)
         uses: actions/upload-artifact@v7
         with:
-          name: sast-semgrep-report
+          name: semgrep-sast-report
           path: semgrep-sast-report.sarif
           retention-days: 7
 
@@ -181,6 +181,14 @@ jobs:
         with:
           sarif_file: '${{ matrix.service }}-trivy-image-results.sarif'
           category: '${{ matrix.service }}-trivy-image'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload Image Results (Trivy)
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-trivy-image-results
+          path: ${{ matrix.service }}-trivy-image-results.sarif
+          retention-days: 7          
           
       # Проверка Dockerfile на best practices
       - name: Lint Dockerfile (Hadolint)
@@ -197,6 +205,14 @@ jobs:
         with:
           sarif_file: 'hadolint-${{ matrix.service }}.sarif'
           category: 'hadolint-${{ matrix.service }}'
+
+      # Сохранение отчета в CI Артефакты
+      - name: Upload Results (Hadolint)
+        uses: actions/upload-artifact@v7
+        with:
+          name: hadolint-${{ matrix.service }}
+          path: hadolint-${{ matrix.service }}.sarif
+          retention-days: 7                    
   ###############################################################
   # Блокировка релиза
   security_gateway:
@@ -234,7 +250,7 @@ jobs:
           echo "Проверка критических уязвимостей"
           
           # Проверяем файлы отчетов SAST на наличие критических уязвимостей
-          if grep -q "CRITICAL" ./reports/sast-results.sarif; then
+          if grep -q "CRITICAL" ./reports/trivy-sast-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Trivy)"
           else
