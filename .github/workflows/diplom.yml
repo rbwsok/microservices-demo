@@ -131,7 +131,7 @@ jobs:
           cd src/frontend/
           docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
-      # Сканирование уязвимостей в контейнере (SCA)
+      # Сканирование уязвимостей в контейнере
       - name: Container Scan (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
