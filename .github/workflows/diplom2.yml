@@ -1,3 +1,19 @@
+# Выпускная работа. Специализация DevSecOps.
+# Константин Певцов
+#
+# За основу взят репозиторий https://github.com/googlecloudplatform/microservices-demo
+# 1. Сделан форк всех веток
+# 2. Включены Issues
+# 3. Отключены родные пайплайны
+#
+# Этапы:
+# 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
+# 2. SAST анализ
+# 3. Сборка образов для докера и их проверка
+# 4. DAST анализ
+# 5. Блокировка деплоя при наличии критических уязвимостей
+# 6. Деплой
+
 name: Online Boutique DevSecOps Pipeline 2
 
 on:
@@ -18,20 +34,20 @@ jobs:
   secrets:
     runs-on: ubuntu-24.04
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # Скачиваем код с github на сервер для проверки
       - name: Checkout full history code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0 # вся история
 
       # Проверка репозитория на секреты. Gitleaks
-      - name: Gitleaks
+      - name: Secrets searching (Gitleaks)
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Проверка репозитория на секреты. Trivy
-      - name: Trivy
+      - name: Secrets searching (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
@@ -41,7 +57,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       # Выгрузка результатов в GitHub Code Scanning
-      - name: Upload
+      - name: Upload secrets (Trivy)
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
@@ -49,15 +65,15 @@ jobs:
           category: 'trivy-secrets'
           
       # Сохранение отчета в CI Артефакты
-      - name: Upload
+      - name: Upload secrets to artifact (Trivy)
         uses: actions/upload-artifact@v7
         with:
           name: trivy-secrets-results
           path: trivy-secrets-results.sarif
           retention-days: 7          
 
-      # Проверка конфигураций
-      - name: Audit Kubernetes & Helm Configurations
+      # Проверка конфигураций Kubernetes и Helm
+      - name: Audit Kubernetes & Helm configurations (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
@@ -65,7 +81,7 @@ jobs:
           output: 'trivy-iac-results.sarif'
 
       # Выгрузка результатов в GitHub Code Scanning
-      - name: Upload IaC Misconfigurations to GitHub Security
+      - name: Upload IaC misconfigurations (Trivy)
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
@@ -73,7 +89,7 @@ jobs:
           category: 'trivy-iac'
 
       # Сохранение отчета в CI Артефакты
-      - name: Upload
+      - name: Upload IaC misconfigurations to artifact (Trivy)
         uses: actions/upload-artifact@v7
         with:
           name: trivy-iac-results
