@@ -60,10 +60,10 @@ jobs:
   # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
   dast:
     name: OWASP ZAP DAST Analysis
-    runs-on: ubuntu-24.04
-    # Запускаем после того, как убедились, что все сервисы собираются
+    runs-on: ubuntu-24.04    
     needs: build-services 
-
+    permissions:
+      issues: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
