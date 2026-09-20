@@ -2,9 +2,13 @@
 # Константин Певцов
 #
 # За основу взят репозиторий https://github.com/googlecloudplatform/microservices-demo
-# 1. Сделан форк всех веток
-# 2. Включены Issues
-# 3. Отключены родные пайплайны
+# 1. Сделан форк всех веток (для более глубокого поиска секретов)
+# 2. Включены Issues (для owasp zap)
+# 3. Отключены родные пайплайны (чтобы не мешались)
+#
+# Изначальный проект настроен на сборку в Google Kubernetes Engine.
+# В выпускной работе GKE не используется.
+#
 #
 # Этапы:
 # 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
@@ -156,25 +160,6 @@ jobs:
 
   ###############################################################
   # Сборка и сканирование контейнеров
-
-#      - name: Checkout Code
-#        uses: actions/checkout@v7
-#      - name: Set up Docker Buildx
-#        uses: docker/setup-buildx-action@v4
-
-      # Сборка docker образов
-#      - name: Build Docker Image
-#        uses: docker/build-push-action@v7
-#        with:
-#          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
-#          context: ${{ matrix.service == 'cartservice' && './src/cartservice/src' || format('./src/{0}', matrix.service) }}
-#          push: false
-#          tags: boutique-${{ matrix.service }}:latest
-#          cache-from: type=gha
-#          cache-to: type=gha,mode=max
-
-
-  
   build_and_scan_images:
     needs: sast
     runs-on: ubuntu-24.04
@@ -273,10 +258,10 @@ jobs:
         uses: actions/checkout@v7
 
       # После многочисленных экспериментов, пришел к такому решению, чтобы не использовать kubernetes.
+      # Вручную создается docker-compose.yml и запускается через docker compose.
       # Создается минимально необходимый список из служб, чтобы заработал frontend
       # Именно frontend и тестируется с помощью owasp zap
 
-      # Динамическое создание docker-compose.yml для тестирования фронтенда
       - name: Generate Docker Compose File
         run: |
           cat <<EOF > docker-compose.yml
@@ -367,24 +352,28 @@ jobs:
     needs: [secrets, sast, build_and_scan_images, dast]
     if: always()
     steps:
+      # Скачивание результатов SACT из CI артефактов (Trivy)
       - name: Download Artifact (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: trivy-sast-results
           path: ./reports
 
+      # Скачивание результатов SACT из CI артефактов (Semgrep)
       - name: Download Artifact (Semgrep)
         uses: actions/download-artifact@v8
         with:
           name: semgrep-sast-results
           path: ./reports
 
+      # Скачивание секретов из CI артефактов (Trivy)
       - name: Download Secrets (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: trivy-secrets-results
           path: ./reports
 
+      # Скачивание ошибок конфигураций из CI артефактов
       - name: Download IaC (Trivy)
         uses: actions/download-artifact@v8
         with:
@@ -392,6 +381,7 @@ jobs:
           path: ./reports
 
       # Проверка на наличие уязвимостей
+      # проверка происходит через поиск слова CRITICAL в тексте отчетов. :)
       - name: Verify
         run: |
           echo "Проверка критических уязвимостей"
@@ -425,12 +415,13 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
+      # Создание отчета
       - name: Create report
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
           echo "- Время обновления: %NOW%" >> summary.md
-          echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
+          echo "- Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
           
       # Комментарии в PR
       - name: Update
@@ -442,7 +433,7 @@ jobs:
           attach-path: comments.md
           refresh-message-position: true
            
-     # Блокировка
+     # Блокировка выполнения
       - name: Block
         if: env.GATE_STATUS == 'FAILED'
         run: |
@@ -457,4 +448,4 @@ jobs:
     steps:
       - name: Deploy
         run: |
-          echo "Проверка пройдены - делаем деплой"
+          echo "Проверки пройдены - делаем деплой"
