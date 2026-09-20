@@ -48,6 +48,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build Docker Image (Dry-Run)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./src/cartservice/src
+          push: false
+          tags: boutique-cartservice:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
   dast:
     name: OWASP ZAP DAST Analysis
