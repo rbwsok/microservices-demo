@@ -93,7 +93,7 @@ jobs:
 
             cartservice:
               build:
-                context: ./src/cartservice
+                context: ./src/cartservice/src
               ports:
                 - "7070:7070"
               environment:
