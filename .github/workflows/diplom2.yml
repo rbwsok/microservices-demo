@@ -9,7 +9,6 @@
 # Изначальный проект настроен на сборку в Google Kubernetes Engine.
 # В выпускной работе GKE не используется.
 #
-#
 # Этапы:
 # 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
 # 2. SAST анализ (Trivy, Semgrep)
@@ -17,8 +16,12 @@
 # 4. DAST анализ (OWASP Zap)
 # 5. Блокировка деплоя при наличии критических уязвимостей
 # 6. Деплой
+#
+# В статическом анализе нет разделения по проектам и по языкам. 
+# Анализируется весь репозиторий, включающий все исходники.
+#
 
-name: Online Boutique DevSecOps Pipeline 2
+name: Online Boutique DevSecOps Pipeline
 
 on:
   push:
@@ -165,6 +168,8 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      # список сервисов задан через отдельный список
+      # структура расположения исходников сервисов одна. немного отличается только cartservice
       matrix:
         service: [
           "adservice",
