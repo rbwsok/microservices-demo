@@ -40,25 +40,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # Сборка docker образов
       - name: Build Docker Image
         uses: docker/build-push-action@v7
-        if: matrix.service != 'cartservice'
         with:
+          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
           context: ${{ matrix.service == 'cartservice' && './src/cartservice/src' || format('./src/{0}', matrix.service) }}
           push: false
           tags: boutique-${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-#      - name: Build cartservice Docker Image
-#        uses: docker/build-push-action@v7
-#        if: matrix.service == 'cartservice'
-#        with:
-#          context: ./src/${{ matrix.service }}/src
-#          push: false
-#          tags: boutique-${{ matrix.service }}:latest
-#          cache-from: type=gha
-#          cache-to: type=gha,mode=max
 
   # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
   dast:
