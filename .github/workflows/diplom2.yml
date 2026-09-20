@@ -118,6 +118,7 @@ jobs:
                 - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
                 - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
                 - AD_SERVICE_ADDR=productcatalogservice:3550
+                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:3550
               depends_on:
                 - productcatalogservice
                 - currencyservice
