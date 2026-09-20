@@ -8,9 +8,9 @@
 #
 # Этапы:
 # 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
-# 2. SAST анализ
-# 3. Сборка образов для докера и их проверка
-# 4. DAST анализ
+# 2. SAST анализ (Trivy, Semgrep)
+# 3. Сборка образов для докера и их проверка (Trivy, Hadolint)
+# 4. DAST анализ (OWASP Zap)
 # 5. Блокировка деплоя при наличии критических уязвимостей
 # 6. Деплой
 
@@ -34,7 +34,7 @@ jobs:
   secrets:
     runs-on: ubuntu-24.04
     steps:
-      # Скачиваем код с github на сервер для проверки
+      # Скачивание кода
       - name: Checkout full history code
         uses: actions/checkout@v7
         with:
@@ -97,12 +97,12 @@ jobs:
           retention-days: 7    
           
   ###############################################################
-  # Статический анализ
+  # Статический анализ (SACT)
   sast:
     runs-on: ubuntu-24.04
     needs: secrets
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # Скачивание кода
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -175,7 +175,7 @@ jobs:
 
 
   
-  build_scan_images:
+  build_and_scan_images:
     needs: sast
     runs-on: ubuntu-24.04
     strategy:
@@ -194,6 +194,7 @@ jobs:
           "shippingservice"
         ]      
     steps:
+      # Скачивание кода
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -259,18 +260,23 @@ jobs:
           retention-days: 7
 
   ###############################################################
-  # DAST
+  # Динамический анализ (DAST)
   dast:
-    name: OWASP ZAP DAST Analysis
     runs-on: ubuntu-24.04    
-    needs: build_scan_images 
+    needs: build_and_scan_images
     permissions:
+      # разрешение на запись в issues для owasp zap
       issues: write
     steps:
+      # Скачивание кода
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      # Динамически создаем docker-compose.yml для тестирования фронтенда
+      # После многочисленных экспериментов, пришел к такому решению, чтобы не использовать kubernetes.
+      # Создается минимально необходимый список из служб, чтобы заработал frontend
+      # Именно frontend и тестируется с помощью owasp zap
+
+      # Динамическое создание docker-compose.yml для тестирования фронтенда
       - name: Generate Docker Compose File
         run: |
           cat <<EOF > docker-compose.yml
@@ -326,20 +332,21 @@ jobs:
                 - currencyservice
                 - cartservice
           EOF
-      # Поднимаем сгенерированный Docker Compose
-      - name: Start Frontend via Docker Compose
+      # Сборка и запуск докер образов с помощью docker compose
+      - name: Start frontend
         run: |
           docker compose up -d --build
           echo "Waiting for frontend to spin up..."
           sleep 15
 
-      # Проверяем, отвечает ли порт приложения
-      - name: Verify Frontend Availability
+      # Проверка, что frontend запустился
+      # если не работает - сразу же блокировка пайплайна 
+      - name: Verify frontend
         run: |
           curl -I http://localhost:8080 || exit 1
 
       # Локальный DAST-анализ с помощью OWASP ZAP
-      - name: OWASP ZAP Baseline Scan (DAST)
+      - name: OWASP ZAP baseline scan
         uses: zaproxy/action-baseline@v0.15.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -357,7 +364,7 @@ jobs:
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, build_scan_images, dast]
+    needs: [secrets, sast, build_and_scan_images, dast]
     if: always()
     steps:
       - name: Download Artifact (Trivy)
