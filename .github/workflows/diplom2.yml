@@ -13,150 +13,10 @@ permissions:
   security-events: write
 
 jobs:
-  # 1. Матричная сборка для валидации Dockerfile (как и требовалось)
-  build-services:
-    name: Build Service
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [
-          "adservice",
-          "cartservice",
-          "checkoutservice",
-          "currencyservice",
-          "emailservice",
-          "frontend",
-          "paymentservice",
-          "productcatalogservice",
-          "recommendationservice",
-          "shippingservice"
-        ]
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      # Сборка docker образов
-      - name: Build Docker Image
-        uses: docker/build-push-action@v7
-        with:
-          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
-          context: ${{ matrix.service == 'cartservice' && './src/cartservice/src' || format('./src/{0}', matrix.service) }}
-          push: false
-          tags: boutique-${{ matrix.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-
-  # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
-  dast:
-    name: OWASP ZAP DAST Analysis
-    runs-on: ubuntu-24.04    
-    needs: build-services 
-    permissions:
-      issues: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-
-      # Динамически создаем docker-compose.yml для тестирования фронтенда
-      - name: Generate Docker Compose File
-        run: |
-          cat <<EOF > docker-compose.yml
-          version: '3.8'
-          services:
-            redis-cart:
-              image: redis:7-alpine
-              ports:
-                - "6379"
-
-            productcatalogservice:
-              build:
-                context: ./src/productcatalogservice
-              ports:
-                - "3550:3550"
-
-            currencyservice:
-              build:
-                context: ./src/currencyservice
-              ports:
-                - "7000:7000"
-
-            cartservice:
-              build:
-                context: ./src/cartservice/src
-              ports:
-                - "7070:7070"
-              environment:
-                - REDIS_ADDR=redis-cart:6379
-              depends_on:
-                - redis-cart
-
-            frontend:
-              build:
-                context: ./src/frontend
-              ports:
-                - "8080:8080"
-              environment:
-                - PORT=8080
-                - ENV_PLATFORM=local
-                # Перенаправляем обязательные gRPC сервисы на реальные контейнеры
-                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
-                - CURRENCY_SERVICE_ADDR=currencyservice:7000
-                - CART_SERVICE_ADDR=cartservice:7070
-                # Остальные второстепенные сервисы пускаем на любой живой порт, чтобы не было паники
-                - RECOMMENDATION_SERVICE_ADDR=productcatalogservice:3550
-                - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
-                - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
-                - AD_SERVICE_ADDR=productcatalogservice:3550
-                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:3550
-              depends_on:
-                - productcatalogservice
-                - currencyservice
-                - cartservice
-          EOF
-      # Поднимаем сгенерированный Docker Compose
-      - name: Start Frontend via Docker Compose
-        run: |
-          docker compose up -d --build
-          echo "Waiting for frontend to spin up..."
-          sleep 15
-
-      # Проверяем, отвечает ли порт приложения
-      - name: Verify Frontend Availability
-        run: |
-          curl -I http://localhost:8080 || exit 1
-
-      # Локальный DAST-анализ с помощью OWASP ZAP
-      - name: OWASP ZAP Baseline Scan (DAST)
-        uses: zaproxy/action-baseline@v0.15.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          target: 'http://localhost:8080'
-          fail_action: false
-          cmd_options: '-a'
-          artifact_name: zap-scan
-
-      # Очистка ресурсов
-      - name: Stop Infrastructure
-        if: always()
-        run: docker compose down        
-
-        
-       # Блокировка
-      - name: Block
-        run: |
-          exit 1            
-
   ###############################################################
   # Поиск секретов
   secrets:
     runs-on: ubuntu-24.04
-    needs: dast
     steps:
       # скачиваем код с github на сервер для проверки (В runner)
       - name: Checkout full history code
@@ -280,6 +140,25 @@ jobs:
 
   ###############################################################
   # Сборка и сканирование контейнеров
+
+#      - name: Checkout Code
+#        uses: actions/checkout@v7
+#      - name: Set up Docker Buildx
+#        uses: docker/setup-buildx-action@v4
+
+      # Сборка docker образов
+#      - name: Build Docker Image
+#        uses: docker/build-push-action@v7
+#        with:
+#          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
+#          context: ${{ matrix.service == 'cartservice' && './src/cartservice/src' || format('./src/{0}', matrix.service) }}
+#          push: false
+#          tags: boutique-${{ matrix.service }}:latest
+#          cache-from: type=gha
+#          cache-to: type=gha,mode=max
+
+
+  
   build_scan_images:
     needs: sast
     runs-on: ubuntu-24.04
@@ -287,26 +166,26 @@ jobs:
       fail-fast: false
       matrix:
         service: [
-        #"cartservice",
-          "adservice", "checkoutservice", "currencyservice",
-          "emailservice", "frontend", "loadgenerator", "paymentservice",
-          "productcatalogservice", "recommendationservice", "shippingservice"
-        ]    
+          "adservice",
+          "cartservice",
+          "checkoutservice",
+          "currencyservice",
+          "emailservice",
+          "frontend",
+          "paymentservice",
+          "productcatalogservice",
+          "recommendationservice",
+          "shippingservice"
+        ]      
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
 
       # Сборка Docker-образа
       - name: Build Docker Image
-        if: matrix.service != 'cartservice'
         run: |
-          cd src/${{ matrix.service }}
-          docker build -t ${{ matrix.service }}:${{ github.sha }} .
-
-      - name: Build cartservice Docker Image
-        if: matrix.service == 'cartservice'
-        run: |
-          cd src/${{ matrix.service }}/src
+          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
+          cd ${{ matrix.service == 'cartservice' && 'src/cartservice/src' || format('src/{0}', matrix.service) }}
           docker build -t ${{ matrix.service }}:${{ github.sha }} .
 
       # Сканирование уязвимостей в контейнере
@@ -360,7 +239,103 @@ jobs:
         with:
           name: hadolint-${{ matrix.service }}
           path: hadolint-${{ matrix.service }}.sarif
-          retention-days: 7                    
+          retention-days: 7
+
+  ###############################################################
+  # DAST
+  dast:
+    name: OWASP ZAP DAST Analysis
+    runs-on: ubuntu-24.04    
+    needs: build_scan_images 
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      # Динамически создаем docker-compose.yml для тестирования фронтенда
+      - name: Generate Docker Compose File
+        run: |
+          cat <<EOF > docker-compose.yml
+          version: '3.8'
+          services:
+            redis-cart:
+              image: redis:7-alpine
+              ports:
+                - "6379"
+
+            productcatalogservice:
+              build:
+                context: ./src/productcatalogservice
+              ports:
+                - "3550:3550"
+
+            currencyservice:
+              build:
+                context: ./src/currencyservice
+              ports:
+                - "7000:7000"
+
+            cartservice:
+              build:
+                context: ./src/cartservice/src
+              ports:
+                - "7070:7070"
+              environment:
+                - REDIS_ADDR=redis-cart:6379
+              depends_on:
+                - redis-cart
+
+            frontend:
+              build:
+                context: ./src/frontend
+              ports:
+                - "8080:8080"
+              environment:
+                - PORT=8080
+                - ENV_PLATFORM=local
+                # Перенаправляем обязательные gRPC сервисы на реальные контейнеры
+                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                - CART_SERVICE_ADDR=cartservice:7070
+                # Остальные второстепенные сервисы пускаем на любой живой порт, чтобы не было паники
+                - RECOMMENDATION_SERVICE_ADDR=productcatalogservice:3550
+                - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
+                - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
+                - AD_SERVICE_ADDR=productcatalogservice:3550
+                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:3550
+              depends_on:
+                - productcatalogservice
+                - currencyservice
+                - cartservice
+          EOF
+      # Поднимаем сгенерированный Docker Compose
+      - name: Start Frontend via Docker Compose
+        run: |
+          docker compose up -d --build
+          echo "Waiting for frontend to spin up..."
+          sleep 15
+
+      # Проверяем, отвечает ли порт приложения
+      - name: Verify Frontend Availability
+        run: |
+          curl -I http://localhost:8080 || exit 1
+
+      # Локальный DAST-анализ с помощью OWASP ZAP
+      - name: OWASP ZAP Baseline Scan (DAST)
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:8080'
+          fail_action: false
+          cmd_options: '-a'
+          artifact_name: zap-scan
+
+      # Очистка ресурсов
+      - name: Stop Infrastructure
+        if: always()
+        run: docker compose down        
+          
   ###############################################################
   # Блокировка релиза
   security_gateway:
@@ -449,3 +424,13 @@ jobs:
         run: |
           echo "Остановка пайплайна из-за критических уязвимостей"
           exit 1            
+
+  ###############################################################
+  # Деплой
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: security_gateway
+    steps:
+      - name: Deploy
+        run: |
+          echo "Проверка пройдены - делаем деплой"
