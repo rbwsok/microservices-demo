@@ -17,11 +17,13 @@
 # 5. Блокировка деплоя при наличии критических уязвимостей
 # 6. Деплой
 #
-# В статическом анализе нет разделения по проектам и по языкам. 
+# В статическом анализе (SAST) нет разделения по проектам и по языкам. 
 # Анализируется весь репозиторий, включающий все исходники.
 #
+# В динамическом анализе (DAST)
 
-name: Online Boutique DevSecOps Pipeline
+
+name: Online Boutique DevSecOps Pipeline 2
 
 on:
   push:
@@ -66,7 +68,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload secrets (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'trivy-secrets-results.sarif'
           category: 'trivy-secrets'
@@ -89,8 +90,7 @@ jobs:
 
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload IaC misconfigurations (Trivy)
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4        
         with:
           sarif_file: 'trivy-iac-results.sarif'
           category: 'trivy-iac'
@@ -104,7 +104,7 @@ jobs:
           retention-days: 7    
           
   ###############################################################
-  # Статический анализ (SACT)
+  # Статический анализ (SAST)
   sast:
     runs-on: ubuntu-24.04
     needs: secrets
@@ -126,7 +126,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'trivy-sast-results.sarif'
           category: 'trivy-sast-results'
@@ -148,7 +147,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'semgrep-sast-results.sarif'
           category: 'semgrep-sast-results'
@@ -210,7 +208,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload Image Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: '${{ matrix.service }}-trivy-image-results.sarif'
           category: '${{ matrix.service }}-trivy-image'
@@ -236,7 +233,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload Results (Hadolint)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'hadolint-${{ matrix.service }}.sarif'
           category: 'hadolint-${{ matrix.service }}'
@@ -262,7 +258,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      # После многочисленных экспериментов, пришел к такому решению, чтобы не использовать kubernetes.
+      # После многочисленных экспериментов и чтения исходников, пришел к такому решению, чтобы не использовать kubernetes.
       # Вручную создается docker-compose.yml и запускается через docker compose.
       # Создается минимально необходимый список из служб, чтобы заработал frontend
       # Именно frontend и тестируется с помощью owasp zap
@@ -326,7 +322,7 @@ jobs:
       - name: Start frontend
         run: |
           docker compose up -d --build
-          echo "Waiting for frontend to spin up..."
+          echo "Waiting for frontend"
           sleep 15
 
       # Проверка, что frontend запустился
@@ -347,7 +343,6 @@ jobs:
 
       # Очистка ресурсов
       - name: Stop Infrastructure
-        if: always()
         run: docker compose down        
           
   ###############################################################
@@ -355,16 +350,15 @@ jobs:
   security_gateway:
     runs-on: ubuntu-24.04
     needs: [secrets, sast, build_and_scan_images, dast]
-    if: always()
     steps:
-      # Скачивание результатов SACT из CI артефактов (Trivy)
+      # Скачивание результатов SAST из CI артефактов (Trivy)
       - name: Download Artifact (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: trivy-sast-results
           path: ./reports
 
-      # Скачивание результатов SACT из CI артефактов (Semgrep)
+      # Скачивание результатов SAST из CI артефактов (Semgrep)
       - name: Download Artifact (Semgrep)
         uses: actions/download-artifact@v8
         with:
