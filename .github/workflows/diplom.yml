@@ -1,3 +1,28 @@
+# Выпускная работа. Специализация DevSecOps.
+# Константин Певцов
+#
+# За основу взят репозиторий https://github.com/googlecloudplatform/microservices-demo
+# 1. Сделан форк всех веток (для более глубокого поиска секретов)
+# 2. Включены Issues (для owasp zap)
+# 3. Отключены родные пайплайны (чтобы не мешались)
+#
+# Изначальный проект настроен на сборку в Google Kubernetes Engine.
+# В выпускной работе GKE не используется.
+#
+# Этапы:
+# 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
+# 2. SAST анализ (Trivy, Semgrep)
+# 3. Сборка образов для докера и их проверка (Trivy, Hadolint)
+# 4. DAST анализ (OWASP Zap)
+# 5. Блокировка деплоя при наличии критических уязвимостей
+# 6. Деплой
+#
+# В статическом анализе (SAST) нет разделения по проектам и по языкам. 
+# Анализируется весь репозиторий, включающий все исходники.
+#
+# В динамическом анализе (DAST)
+
+
 name: Online Boutique DevSecOps Pipeline
 
 on:
@@ -18,20 +43,20 @@ jobs:
   secrets:
     runs-on: ubuntu-24.04
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # Скачивание кода
       - name: Checkout full history code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0 # вся история
 
       # Проверка репозитория на секреты. Gitleaks
-      - name: Gitleaks
+      - name: Secrets searching (Gitleaks)
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Проверка репозитория на секреты. Trivy
-      - name: Trivy
+      - name: Secrets searching (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
@@ -41,23 +66,22 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       # Выгрузка результатов в GitHub Code Scanning
-      - name: Upload
+      - name: Upload secrets (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'trivy-secrets-results.sarif'
           category: 'trivy-secrets'
           
       # Сохранение отчета в CI Артефакты
-      - name: Upload
+      - name: Upload secrets to artifact (Trivy)
         uses: actions/upload-artifact@v7
         with:
           name: trivy-secrets-results
           path: trivy-secrets-results.sarif
           retention-days: 7          
 
-      # Проверка конфигураций
-      - name: Audit Kubernetes & Helm Configurations
+      # Проверка конфигураций Kubernetes и Helm
+      - name: Audit Kubernetes & Helm configurations (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'config'
@@ -65,15 +89,14 @@ jobs:
           output: 'trivy-iac-results.sarif'
 
       # Выгрузка результатов в GitHub Code Scanning
-      - name: Upload IaC Misconfigurations to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
-        if: always()
+      - name: Upload IaC misconfigurations (Trivy)
+        uses: github/codeql-action/upload-sarif@v4        
         with:
           sarif_file: 'trivy-iac-results.sarif'
           category: 'trivy-iac'
 
       # Сохранение отчета в CI Артефакты
-      - name: Upload
+      - name: Upload IaC misconfigurations to artifact (Trivy)
         uses: actions/upload-artifact@v7
         with:
           name: trivy-iac-results
@@ -81,12 +104,12 @@ jobs:
           retention-days: 7    
           
   ###############################################################
-  # Статический анализ
+  # Статический анализ (SAST)
   sast:
     runs-on: ubuntu-24.04
     needs: secrets
     steps:
-      # скачиваем код с github на сервер для проверки (В runner)
+      # Скачивание кода
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -103,10 +126,9 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'trivy-sast-results.sarif'
-          category: 'trivy-sast'
+          category: 'trivy-sast-results'
 
       # Сохранение отчета в CI Артефакты (Trivy)
       - name: Upload SAST Results (Trivy)
@@ -125,7 +147,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'semgrep-sast-results.sarif'
           category: 'semgrep-sast-results'
@@ -140,26 +161,36 @@ jobs:
 
   ###############################################################
   # Сборка и сканирование контейнеров
-  check_images:
+  build_and_scan_images:
     needs: sast
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      # список сервисов задан через отдельный список
+      # структура расположения исходников сервисов одна. немного отличается только cartservice
       matrix:
         service: [
-        #"cartservice",
-          "adservice", "checkoutservice", "currencyservice",
-          "emailservice", "frontend", "loadgenerator", "paymentservice",
-          "productcatalogservice", "recommendationservice", "shippingservice"
-        ]    
+          "adservice",
+          "cartservice",
+          "checkoutservice",
+          "currencyservice",
+          "emailservice",
+          "frontend",
+          "paymentservice",
+          "productcatalogservice",
+          "recommendationservice",
+          "shippingservice"
+        ]      
     steps:
+      # Скачивание кода
       - name: Checkout code
         uses: actions/checkout@v7
 
       # Сборка Docker-образа
       - name: Build Docker Image
         run: |
-          cd src/frontend/
+          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}
+          cd ${{ matrix.service == 'cartservice' && 'src/cartservice/src' || format('src/{0}', matrix.service) }}
           docker build -t ${{ matrix.service }}:${{ github.sha }} .
 
       # Сканирование уязвимостей в контейнере
@@ -177,7 +208,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload Image Results (Trivy)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: '${{ matrix.service }}-trivy-image-results.sarif'
           category: '${{ matrix.service }}-trivy-image'
@@ -194,7 +224,8 @@ jobs:
       - name: Lint Dockerfile (Hadolint)
         uses: hadolint/hadolint-action@v3.5.0
         with:
-          dockerfile: src/${{ matrix.service }}/Dockerfile
+          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}       
+          dockerfile: ${{ matrix.service == 'cartservice' && 'src/cartservice/src/Dockerfile' || format('src/{0}/Dockerfile', matrix.service) }}
           format: sarif
           output-file: hadolint-${{ matrix.service }}.sarif
           no-fail: true
@@ -202,7 +233,6 @@ jobs:
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload Results (Hadolint)
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
         with:
           sarif_file: 'hadolint-${{ matrix.service }}.sarif'
           category: 'hadolint-${{ matrix.service }}'
@@ -213,32 +243,136 @@ jobs:
         with:
           name: hadolint-${{ matrix.service }}
           path: hadolint-${{ matrix.service }}.sarif
-          retention-days: 7                    
+          retention-days: 7
+
+  ###############################################################
+  # Динамический анализ (DAST)
+  dast:
+    runs-on: ubuntu-24.04    
+    needs: build_and_scan_images
+    permissions:
+      # разрешение на запись в issues для owasp zap
+      issues: write
+    steps:
+      # Скачивание кода
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      # После многочисленных экспериментов и чтения исходников, пришел к такому решению, чтобы не использовать kubernetes.
+      # Вручную создается docker-compose.yml и запускается через docker compose.
+      # Создается минимально необходимый список из служб, чтобы заработал frontend
+      # Именно frontend и тестируется с помощью owasp zap
+
+      - name: Generate Docker Compose File
+        run: |
+          cat <<EOF > docker-compose.yml
+          version: '3.8'
+          services:
+            redis-cart:
+              image: redis:7-alpine
+              ports:
+                - "6379"
+
+            productcatalogservice:
+              build:
+                context: ./src/productcatalogservice
+              ports:
+                - "3550:3550"
+
+            currencyservice:
+              build:
+                context: ./src/currencyservice
+              ports:
+                - "7000:7000"
+
+            cartservice:
+              build:
+                context: ./src/cartservice/src
+              ports:
+                - "7070:7070"
+              environment:
+                - REDIS_ADDR=redis-cart:6379
+              depends_on:
+                - redis-cart
+
+            frontend:
+              build:
+                context: ./src/frontend
+              ports:
+                - "8080:8080"
+              environment:
+                - PORT=8080
+                - ENV_PLATFORM=local
+                # Перенаправляем обязательные gRPC сервисы на реальные контейнеры
+                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                - CART_SERVICE_ADDR=cartservice:7070
+                # Остальные второстепенные сервисы пускаем на любой живой порт, чтобы не было паники
+                - RECOMMENDATION_SERVICE_ADDR=productcatalogservice:3550
+                - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
+                - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
+                - AD_SERVICE_ADDR=productcatalogservice:3550
+                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:3550
+              depends_on:
+                - productcatalogservice
+                - currencyservice
+                - cartservice
+          EOF
+      # Сборка и запуск докер образов с помощью docker compose
+      - name: Start frontend
+        run: |
+          docker compose up -d --build
+          echo "Waiting for frontend"
+          sleep 15
+
+      # Проверка, что frontend запустился
+      # если не работает - сразу же блокировка пайплайна 
+      - name: Verify frontend
+        run: |
+          curl -I http://localhost:8080 || exit 1
+
+      # Локальный DAST-анализ с помощью OWASP ZAP
+      - name: OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:8080'
+          fail_action: false
+          cmd_options: '-a'
+          artifact_name: zap-scan
+
+      # Очистка ресурсов
+      - name: Stop Infrastructure
+        run: docker compose down        
+          
   ###############################################################
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, check_images]
-    if: always()
+    needs: [secrets, sast, build_and_scan_images, dast]
     steps:
+      # Скачивание результатов SAST из CI артефактов (Trivy)
       - name: Download Artifact (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: trivy-sast-results
           path: ./reports
 
+      # Скачивание результатов SAST из CI артефактов (Semgrep)
       - name: Download Artifact (Semgrep)
         uses: actions/download-artifact@v8
         with:
           name: semgrep-sast-results
           path: ./reports
 
+      # Скачивание секретов из CI артефактов (Trivy)
       - name: Download Secrets (Trivy)
         uses: actions/download-artifact@v8
         with:
           name: trivy-secrets-results
           path: ./reports
 
+      # Скачивание ошибок конфигураций из CI артефактов
       - name: Download IaC (Trivy)
         uses: actions/download-artifact@v8
         with:
@@ -246,6 +380,7 @@ jobs:
           path: ./reports
 
       # Проверка на наличие уязвимостей
+      # проверка происходит через поиск слова CRITICAL в тексте отчетов. :)
       - name: Verify
         run: |
           echo "Проверка критических уязвимостей"
@@ -279,12 +414,13 @@ jobs:
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
+      # Создание отчета
       - name: Create report
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
           echo "- Время обновления: %NOW%" >> summary.md
-          echo "Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
+          echo "- Исправить код помогут выгруженные артефакты (логи) и гугл. " > comments.md
           
       # Комментарии в PR
       - name: Update
@@ -296,9 +432,19 @@ jobs:
           attach-path: comments.md
           refresh-message-position: true
            
-     # Блокировка
+     # Блокировка выполнения
       - name: Block
         if: env.GATE_STATUS == 'FAILED'
         run: |
           echo "Остановка пайплайна из-за критических уязвимостей"
           exit 1            
+
+  ###############################################################
+  # Деплой
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: security_gateway
+    steps:
+      - name: Deploy
+        run: |
+          echo "Проверки пройдены - делаем деплой"
