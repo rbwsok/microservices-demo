@@ -39,8 +39,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Docker Image (Dry-Run)
+      - name: Build Docker Image
         uses: docker/build-push-action@v7
+        if: matrix.service != 'cartservice'
         with:
           context: ./src/${{ matrix.service }}
           push: false
@@ -48,12 +49,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build Docker Image (Dry-Run)
+      - name: Build cartservice Docker Image
         uses: docker/build-push-action@v7
+        if: matrix.service == 'cartservice'
         with:
-          context: ./src/cartservice/src
+          context: ${{ matrix.service }}/src
           push: false
-          tags: boutique-cartservice:latest
+          tags: boutique-${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -144,6 +146,7 @@ jobs:
           target: 'http://localhost:8080'
           fail_action: false
           cmd_options: '-a'
+          artifact_name: zap-scan
 
       # Очистка ресурсов
       - name: Stop Infrastructure
