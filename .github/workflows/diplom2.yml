@@ -220,7 +220,8 @@ jobs:
       - name: Lint Dockerfile (Hadolint)
         uses: hadolint/hadolint-action@v3.5.0
         with:
-          dockerfile: src/${{ matrix.service }}/Dockerfile
+          # у cartservice - Dockerfile находится в ./src/${{ matrix.service }}/src, у остальных - в ./src/${{ matrix.service }}       
+          dockerfile: ${{ matrix.service == 'cartservice' && 'src/cartservice/src/Dockerfile' || format('src/{0}/Dockerfile', matrix.service) }}
           format: sarif
           output-file: hadolint-${{ matrix.service }}.sarif
           no-fail: true
