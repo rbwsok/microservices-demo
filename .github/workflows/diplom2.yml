@@ -65,6 +65,33 @@ jobs:
           cat <<EOF > docker-compose.yml
           version: '3.8'
           services:
+            redis-cart:
+              image: redis:7-alpine
+              ports:
+                - "6379"
+
+            productcatalogservice:
+              build:
+                context: ./src/productcatalogservice
+              ports:
+                - "3550:3550"
+
+            currencyservice:
+              build:
+                context: ./src/currencyservice
+              ports:
+                - "7000:7000"
+
+            cartservice:
+              build:
+                context: ./src/cartservice
+              ports:
+                - "7070:7070"
+              environment:
+                - REDIS_ADDR=redis-cart:6379
+              depends_on:
+                - redis-cart
+
             frontend:
               build:
                 context: ./src/frontend
@@ -72,16 +99,21 @@ jobs:
                 - "8080:8080"
               environment:
                 - PORT=8080
-                - PRODUCT_CATALOG_SERVICE_ADDR=mock:8080 # Заглушки, чтобы фронтенд запустился
-                - CURRENCY_SERVICE_ADDR=mock:8080
-                - CART_SERVICE_ADDR=mock:8080
-                - RECOMMENDATION_SERVICE_ADDR=mock:8080
-                - SHIPPING_SERVICE_ADDR=mock:8080
-                - CHECKOUT_SERVICE_ADDR=mock:8080
-                - AD_SERVICE_ADDR=mock:8080
                 - ENV_PLATFORM=local
+                # Перенаправляем обязательные gRPC сервисы на реальные контейнеры
+                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                - CART_SERVICE_ADDR=cartservice:7070
+                # Остальные второстепенные сервисы пускаем на любой живой порт, чтобы не было паники
+                - RECOMMENDATION_SERVICE_ADDR=productcatalogservice:3550
+                - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
+                - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
+                - AD_SERVICE_ADDR=productcatalogservice:3550
+              depends_on:
+                - productcatalogservice
+                - currencyservice
+                - cartservice
           EOF
-
       # Поднимаем сгенерированный Docker Compose
       - name: Start Frontend via Docker Compose
         run: |
