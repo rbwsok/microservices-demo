@@ -22,6 +22,7 @@ jobs:
       matrix:
         service: [
           "adservice",
+          "cartservice",
           "checkoutservice",
           "currencyservice",
           "emailservice",
@@ -43,21 +44,21 @@ jobs:
         uses: docker/build-push-action@v7
         if: matrix.service != 'cartservice'
         with:
-          context: ./src/${{ matrix.service }}
+          context: ${{ matrix.service == 'cartservice' && './src/cartservice/src' || format('./src/{0}', matrix.service) }}
           push: false
           tags: boutique-${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build cartservice Docker Image
-        uses: docker/build-push-action@v7
-        if: matrix.service == 'cartservice'
-        with:
-          context: ${{ matrix.service }}/src
-          push: false
-          tags: boutique-${{ matrix.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+#      - name: Build cartservice Docker Image
+#        uses: docker/build-push-action@v7
+#        if: matrix.service == 'cartservice'
+#        with:
+#          context: ./src/${{ matrix.service }}/src
+#          push: false
+#          tags: boutique-${{ matrix.service }}:latest
+#          cache-from: type=gha
+#          cache-to: type=gha,mode=max
 
   # 2. Развертывание в локальный K8s (Kind) и DAST-сканирование
   dast:
@@ -305,8 +306,15 @@ jobs:
 
       # Сборка Docker-образа
       - name: Build Docker Image
+        if: matrix.service != 'cartservice'
         run: |
-          cd src/frontend/
+          cd src/${{ matrix.service }}
+          docker build -t ${{ matrix.service }}:${{ github.sha }} .
+
+      - name: Build cartservice Docker Image
+        if: matrix.service == 'cartservice'
+        run: |
+          cd src/${{ matrix.service }}/src
           docker build -t ${{ matrix.service }}:${{ github.sha }} .
 
       # Сканирование уязвимостей в контейнере
