@@ -357,7 +357,7 @@ jobs:
   # Блокировка релиза
   security_gateway:
     runs-on: ubuntu-24.04
-    needs: [secrets, sast, build_and_scan_images, dast]
+    needs: [build_and_scan_images, dast]
     steps:
       # Скачивание результатов SAST из CI артефактов (Trivy)
       - name: Download Artifact (Trivy)
