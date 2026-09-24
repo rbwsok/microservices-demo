@@ -21,7 +21,7 @@
 # Анализируется весь репозиторий, включающий все исходники.
 #
 
-name: Online Boutique DevSecOps Pipeline
+name: Online Boutique DevSecOps Pipeline (test)
 
 on:
 #  push:
@@ -141,6 +141,8 @@ jobs:
   sast_semgrep:
     runs-on: ubuntu-24.04
     needs: secrets
+    container:
+      image: semgrep/semgrep:latest
     steps:
       # Скачивание кода
       - name: Checkout code
@@ -148,16 +150,14 @@ jobs:
 
       # Сканирование исходного кода. Semgrep.
       - name: SAST (Semgrep)
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep \
-            semgrep scan --config=auto --sarif-output=/src/semgrep-sast-results.sarif
+        run: semgrep scan --config=p/ci --sarif --output=semgrep-sast-results.sarif      
 
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload SAST Results (Semgrep)
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: 'semgrep-sast-results.sarif'
-          category: 'semgrep-sast-results'
+          sarif_file: semgrep-sast-results.sarif
+          category: semgrep-sast-results
 
       # Сохранение отчета в CI Артефакты (Semgrep)
       - name: Upload SAST Results (Semgrep)
