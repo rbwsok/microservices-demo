@@ -37,8 +37,8 @@ permissions:
 
 jobs:
   ###############################################################
-  # Поиск секретов
-  secrets:
+  # Поиск секретов (gitleaks)
+  secrets_gitleaks:
     runs-on: ubuntu-24.04
     steps:
       # Скачивание кода
@@ -53,13 +53,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Проверка репозитория на секреты. trufflehog
-      - name: Secrets searching (trufflehog)
-        uses: trufflesecurity/trufflehog@v3.97.9
+  ###############################################################
+  # Поиск секретов (Trivy)
+  secrets_trivy:
+    runs-on: ubuntu-24.04
+    steps:
+      # Скачивание кода
+      - name: Checkout full history code
+        uses: actions/checkout@v7
         with:
-          path: ./
-          head: ${{ github.ref_name }}
-          extra_args: --sarif --results=verified,unknown
+          fetch-depth: 0 # вся история
         
       # Проверка репозитория на секреты. Trivy
       - name: Secrets searching (Trivy)
@@ -79,7 +82,7 @@ jobs:
           category: 'trivy-secrets'
           
       # Сохранение отчета в CI Артефакты
-      - name: Upload secrets to artifact (Trivy)
+      - name: Upload secrets to artifacts (Trivy)
         uses: actions/upload-artifact@v7
         with:
           name: trivy-secrets-results
@@ -108,12 +111,46 @@ jobs:
           name: trivy-iac-results
           path: trivy-iac-results.sarif
           retention-days: 7    
+
+  ###############################################################
+  # Поиск секретов (TruffleHog)
+  secrets_trufflehog:
+    runs-on: ubuntu-24.04
+    steps:
+      # Скачивание кода
+      - name: Checkout full history code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # вся история
+
+      # Проверка репозитория на секреты. trufflehog
+      - name: Secrets searching (trufflehog)
+        uses: trufflesecurity/trufflehog@v3.97.9
+        with:
+          path: ./
+          head: ${{ github.ref_name }}
+          extra_args: --sarif --results=verified,unknown
+        
+      # Выгрузка результатов в GitHub Code Scanning
+      - name: Upload secrets (TruffleHog)
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trufflehog-results.sarif
+          category: trufflehog
+          
+      # Сохранение отчета в CI Артефакты
+      - name: Upload secrets to artifacts (TruffleHog)
+        uses: actions/upload-artifact@v7
+        with:
+          name: trufflehog-results
+          path: trufflehog-results.sarif
+          retention-days: 7          
           
   ###############################################################
   # Статический анализ (SAST Trivy)
   sast_trivy:
     runs-on: ubuntu-24.04
-    needs: secrets
+    needs: [secrets_gitleaks, secrets_trivy, secrets_trufflehog]
     steps:
       # Скачивание кода
       - name: Checkout code
@@ -148,7 +185,7 @@ jobs:
   # Статический анализ (SAST Semgrep)
   sast_semgrep:
     runs-on: ubuntu-24.04
-    needs: secrets
+    needs: [secrets_gitleaks, secrets_trivy, secrets_trufflehog]
     container:
       image: semgrep/semgrep:latest
     steps:
