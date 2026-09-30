@@ -129,7 +129,7 @@ jobs:
         with:
           path: ./
           head: ${{ github.ref_name }}
-          extra_args: --sarif --results=verified,unknown
+          extra_args: --format=sarif --output=trufflehog-results.sarif
         
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload secrets (TruffleHog)
