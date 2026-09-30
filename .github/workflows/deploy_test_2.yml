@@ -1,0 +1,168 @@
+name: deploy test 2
+
+on:
+  workflow_dispatch:
+jobs:
+  ###############################################################
+  # Деплой
+  deploy:
+    runs-on: ubuntu-24.04    
+    steps:
+      # Скачивание кода
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and Export Images
+        run: |
+          mkdir -p ./images
+          
+          # Пример для нескольких ключевых сервисов (добавьте остальные по аналогии)
+          docker buildx build --load -t frontend:latest ./src/frontend
+          docker buildx build --load -t cartservice:latest ./src/cartservice/src
+          docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
+          
+          # Сохраняем собранные образы в tar-архивы
+          docker save boutique-frontend:latest -o ./images/frontend.tar
+          docker save boutique-cartservice:latest -o ./images/cartservice.tar
+          docker save boutique-productcatalogservice:latest -o ./images/productcatalogservice.tar
+
+      - name: Prepare
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            TARGET_DIR="/root/microservices-demo"
+
+            if [ ! -d "$TARGET_DIR" ]; then
+              mkdir -p "$(dirname "$TARGET_DIR")"
+              git clone https://github.com/${{ github.repository }}.git "$TARGET_DIR"
+              cd "$TARGET_DIR"
+            else
+              cd "$TARGET_DIR"
+              git fetch --all
+              git reset --hard origin/main
+            fi
+
+            cat <<EOF > docker-compose.yml
+            version: '3.8'
+            services:
+              redis-cart:
+                image: redis:7-alpine
+                container_name: redis-cart
+                ports:
+                  - "6379"
+  
+              frontend:
+                image: frontend:lastest
+                ports:
+                  - "8080:8080"
+                environment:
+                  - PORT=8080
+                  - ENV_PLATFORM=local
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+                  - AD_SERVICE_ADDR=adservice:9555
+                  - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - recommendationservice
+                  - shippingservice
+                  - checkoutservice
+                  - adservice                
+  
+              productcatalogservice:
+                image: productcatalogservice:lastest
+  
+              currencyservice:
+                image: currencyservice:lastest
+  
+              cartservice:
+                image: cartservice:lastest
+                environment:
+                  - REDIS_ADDR=redis-cart:6379
+                depends_on:
+                  - redis-cart
+  
+              recommendationservice:
+                image: recommendationservice:lastest
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                depends_on:
+                  - productcatalogservice                
+  
+              adservice:
+                image: adservice:lastest
+  
+              loadgenerator:
+                image: loadgenerator:lastest
+                environment:
+                  - FRONTEND_ADDR=frontend:8080
+                depends_on:
+                  - frontend
+  
+              paymentservice:
+                image: paymentservice:lastest
+            
+              shippingservice:
+                image: shippingservice:lastest
+            
+              emailservice:
+                image: emailservice:lastest
+            
+              checkoutservice:
+                image: checkoutservice:lastest
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - PAYMENT_SERVICE_ADDR=paymentservice:50051
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - EMAIL_SERVICE_ADDR=emailservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - paymentservice
+                  - shippingservice
+                  - emailservice
+            EOF
+
+      - name: Copy files to Server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "images/*.tar"
+          target: "/root/microservices-demo"
+
+      - name: Load Images and Run
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /root/microservices-demo
+            
+            # Загружаем все переданные tar-архивы в локальный Docker сервера
+            for f in images/*.tar; do
+              docker load -i "$f"
+            done
+            
+            # Запускаем docker-compose (в docker-compose.yml вместо build: ... укажите image: boutique-frontend:latest и т.д.)
+            docker compose up -d
+            
+            # Очищаем архивные файлы, чтобы не занимать место
+            rm -rf images/
