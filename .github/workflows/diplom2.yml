@@ -10,7 +10,7 @@
 # В выпускной работе GKE не используется.
 #
 # Этапы:
-# 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy)
+# 1. Поиск секретов, анализ конфигурации Kubernetes (Gitleaks, Trivy, TruffleHog)
 # 2. SAST анализ (Trivy, Semgrep)
 # 3. Сборка образов для докера и их проверка (Trivy, Hadolint)
 # 4. DAST анализ (OWASP Zap)
