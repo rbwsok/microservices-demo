@@ -9,69 +9,69 @@ jobs:
     runs-on: ubuntu-24.04    
     steps:
       # Скачивание кода
-      - name: Checkout Code
-        uses: actions/checkout@v7
+#      - name: Checkout Code
+#        uses: actions/checkout@v7
       
       # Настройка docker buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+#      - name: Set up Docker Buildx
+#        uses: docker/setup-buildx-action@v4
 
       # Сборка
-      - name: Build and Export Images
-        run: |
-          mkdir -p ./images
+#      - name: Build and Export Images
+#        run: |
+#          mkdir -p ./images
           
           # сборка контейнеров
-          docker buildx build --load -t frontend:latest ./src/frontend
-          docker buildx build --load -t cartservice:latest ./src/cartservice/src
-          docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
-          docker buildx build --load -t currencyservice:latest ./src/currencyservice
-          docker buildx build --load -t recommendationservice:latest ./src/recommendationservice
-          docker buildx build --load -t adservice:latest ./src/adservice
-          docker buildx build --load -t loadgenerator:latest ./src/loadgenerator
-          docker buildx build --load -t paymentservice:latest ./src/paymentservice
-          docker buildx build --load -t shippingservice:latest ./src/shippingservice
-          docker buildx build --load -t emailservice:latest ./src/emailservice
-          docker buildx build --load -t checkoutservice:latest ./src/checkoutservice
+#          docker buildx build --load -t frontend:latest ./src/frontend
+#          docker buildx build --load -t cartservice:latest ./src/cartservice/src
+#          docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
+#          docker buildx build --load -t currencyservice:latest ./src/currencyservice
+#          docker buildx build --load -t recommendationservice:latest ./src/recommendationservice
+#          docker buildx build --load -t adservice:latest ./src/adservice
+#          docker buildx build --load -t loadgenerator:latest ./src/loadgenerator
+#          docker buildx build --load -t paymentservice:latest ./src/paymentservice
+#          docker buildx build --load -t shippingservice:latest ./src/shippingservice
+#          docker buildx build --load -t emailservice:latest ./src/emailservice
+#          docker buildx build --load -t checkoutservice:latest ./src/checkoutservice
           
           # Сжатие в tar
-          docker save frontend:latest -o ./images/frontend.tar
-          docker save cartservice:latest -o ./images/cartservice.tar
-          docker save productcatalogservice:latest -o ./images/sproductcatalogservice.tar
-          docker save currencyservice:latest -o ./images/currencyservice.tar
-          docker save recommendationservice:latest -o ./images/recommendationservice.tar
-          docker save adservice:latest -o ./images/adservice.tar
-          docker save loadgenerator:latest -o ./images/loadgenerator.tar
-          docker save paymentservice:latest -o ./images/paymentservice.tar
-          docker save shippingservice:latest -o ./images/shippingservice.tar
-          docker save emailservice:latest -o ./images/emailservice.tar
-          docker save checkoutservice:latest -o ./images/checkoutservice.tar
+#          docker save frontend:latest -o ./images/frontend.tar
+#          docker save cartservice:latest -o ./images/cartservice.tar
+#          docker save productcatalogservice:latest -o ./images/sproductcatalogservice.tar
+#          docker save currencyservice:latest -o ./images/currencyservice.tar
+#          docker save recommendationservice:latest -o ./images/recommendationservice.tar
+#          docker save adservice:latest -o ./images/adservice.tar
+#          docker save loadgenerator:latest -o ./images/loadgenerator.tar
+#          docker save paymentservice:latest -o ./images/paymentservice.tar
+#          docker save shippingservice:latest -o ./images/shippingservice.tar
+#          docker save emailservice:latest -o ./images/emailservice.tar
+#          docker save checkoutservice:latest -o ./images/checkoutservice.tar
       
-      # Подготовка на стороне сервера
-      - name: Prepare server side 1
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            TARGET_DIR="/root/microservices-demo"
+      # Подготовка на стороне сервера 1
+#      - name: Prepare server side 1
+#        uses: appleboy/ssh-action@v1.2.5
+#        with:
+#          host: ${{ secrets.SSH_HOST }}
+#          username: ${{ secrets.SSH_USER }}
+#          key: ${{ secrets.SSH_PRIVATE_KEY }}
+#          script: |
+#            TARGET_DIR="/root/microservices-demo"
 
-            if [ ! -d "$TARGET_DIR" ]; then
-              mkdir -p "$(dirname "$TARGET_DIR")"
-            fi
+#            if [ ! -d "$TARGET_DIR" ]; then
+#              mkdir -p "$(dirname "$TARGET_DIR")"
+#            fi
 
       # Копирование файлов на сервер
-      - name: Copy files to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "images/*.tar"
-          target: "/root/microservices-demo"
+#      - name: Copy files to server
+#        uses: appleboy/scp-action@v1
+#        with:
+#          host: ${{ secrets.SSH_HOST }}
+#          username: ${{ secrets.SSH_USER }}
+#          key: ${{ secrets.SSH_PRIVATE_KEY }}
+#          source: "images/*.tar"
+#          target: "/root/microservices-demo"
 
-      # Подготовка на стороне сервера
+      # Подготовка на стороне сервера 2
       - name: Prepare server side 2
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -79,7 +79,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd "/root/microservices-demo"
+            cd "/root"
 
             cat <<EOF > docker-compose.yml
             version: '3.8'
@@ -177,7 +177,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /root/microservices-demo
             
@@ -185,6 +185,8 @@ jobs:
             for f in images/*.tar; do
               docker load -i "$f"
             done
+
+            cd /root
             
             # запуск
             docker compose up -d
