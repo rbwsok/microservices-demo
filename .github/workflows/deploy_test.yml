@@ -12,119 +12,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      - name: Generate Docker Compose File
-        run: |
-          cat <<EOF > docker-compose.yml
-          version: '3.8'
-          services:
-            redis-cart:
-              image: redis:7-alpine
-              container_name: redis-cart
-              ports:
-                - "6379"
-
-            frontend:
-              build:
-                context: ./src/frontend
-              container_name: frontend                
-              ports:
-                - "8080:8080"
-              environment:
-                - PORT=8080
-                - ENV_PLATFORM=local
-                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
-                - CURRENCY_SERVICE_ADDR=currencyservice:7000
-                - CART_SERVICE_ADDR=cartservice:7070
-                - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
-                - SHIPPING_SERVICE_ADDR=shippingservice:50051
-                - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
-                - AD_SERVICE_ADDR=adservice:9555
-                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:8080
-              depends_on:
-                - productcatalogservice
-                - currencyservice
-                - cartservice
-                - recommendationservice
-                - shippingservice
-                - checkoutservice
-                - adservice                
-
-            productcatalogservice:
-              build:
-                context: ./src/productcatalogservice
-              container_name: productcatalogservice                
-
-            currencyservice:
-              build:
-                context: ./src/currencyservice
-              container_name: currencyservice                
-
-            cartservice:
-              build:
-                context: ./src/cartservice/src
-              environment:
-                - REDIS_ADDR=redis-cart:6379
-              depends_on:
-                - redis-cart
-              container_name: cartservice                
-
-            recommendationservice:
-              build: ./src/recommendationservice
-              container_name: recommendationservice
-              environment:
-                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
-              depends_on:
-                - productcatalogservice                
-
-            adservice:
-              build: ./src/adservice
-              container_name: adservice                
-
-            loadgenerator:
-              build: ./src/loadgenerator
-              container_name: loadgenerator
-              environment:
-                - FRONTEND_ADDR=frontend:8080
-              depends_on:
-                - frontend
-
-            paymentservice:
-              build: ./src/paymentservice
-              container_name: paymentservice
-          
-            shippingservice:
-              build: ./src/shippingservice
-              container_name: shippingservice
-          
-            emailservice:
-              build: ./src/emailservice
-              container_name: emailservice
-          
-            checkoutservice:
-              build: ./src/checkoutservice
-              container_name: checkoutservice
-              environment:
-                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
-                - CURRENCY_SERVICE_ADDR=currencyservice:7000
-                - CART_SERVICE_ADDR=cartservice:7070
-                - PAYMENT_SERVICE_ADDR=paymentservice:50051
-                - SHIPPING_SERVICE_ADDR=shippingservice:50051
-                - EMAIL_SERVICE_ADDR=emailservice:8080
-              depends_on:
-                - productcatalogservice
-                - currencyservice
-                - cartservice
-                - paymentservice
-                - shippingservice
-                - emailservice                
-          EOF
       # Сборка и запуск докер образов с помощью docker compose
-      - name: Deploy
-        run: |
-          docker compose up -d --build
-          echo "Waiting for frontend"
-          sleep 15
-
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -144,6 +32,111 @@ jobs:
               git fetch --all
               git reset --hard origin/main
             fi
+
+            cat <<EOF > docker-compose.yml
+            version: '3.8'
+            services:
+              redis-cart:
+                image: redis:7-alpine
+                container_name: redis-cart
+                ports:
+                  - "6379"
+  
+              frontend:
+                build:
+                  context: ./src/frontend
+                container_name: frontend                
+                ports:
+                  - "8080:8080"
+                environment:
+                  - PORT=8080
+                  - ENV_PLATFORM=local
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+                  - AD_SERVICE_ADDR=adservice:9555
+                  - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - recommendationservice
+                  - shippingservice
+                  - checkoutservice
+                  - adservice                
+  
+              productcatalogservice:
+                build:
+                  context: ./src/productcatalogservice
+                container_name: productcatalogservice                
+  
+              currencyservice:
+                build:
+                  context: ./src/currencyservice
+                container_name: currencyservice                
+  
+              cartservice:
+                build:
+                  context: ./src/cartservice/src
+                environment:
+                  - REDIS_ADDR=redis-cart:6379
+                depends_on:
+                  - redis-cart
+                container_name: cartservice                
+  
+              recommendationservice:
+                build: ./src/recommendationservice
+                container_name: recommendationservice
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                depends_on:
+                  - productcatalogservice                
+  
+              adservice:
+                build: ./src/adservice
+                container_name: adservice                
+  
+              loadgenerator:
+                build: ./src/loadgenerator
+                container_name: loadgenerator
+                environment:
+                  - FRONTEND_ADDR=frontend:8080
+                depends_on:
+                  - frontend
+  
+              paymentservice:
+                build: ./src/paymentservice
+                container_name: paymentservice
+            
+              shippingservice:
+                build: ./src/shippingservice
+                container_name: shippingservice
+            
+              emailservice:
+                build: ./src/emailservice
+                container_name: emailservice
+            
+              checkoutservice:
+                build: ./src/checkoutservice
+                container_name: checkoutservice
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - PAYMENT_SERVICE_ADDR=paymentservice:50051
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - EMAIL_SERVICE_ADDR=emailservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - paymentservice
+                  - shippingservice
+                  - emailservice                
+            EOF
             
             # Собираем изменившиеся контейнеры и запускаем проект в фоне
             docker compose up -d --build
