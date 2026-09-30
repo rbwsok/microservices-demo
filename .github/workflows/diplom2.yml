@@ -125,12 +125,12 @@ jobs:
 
       # Проверка репозитория на секреты. trufflehog
       - name: Secrets searching (trufflehog)
-#        uses: trufflesecurity/trufflehog@v3.97.9
-#        with:
-#          extra_args: --sarif --output=trufflehog-results.sarif
-        run: trufflehog filesystem . --sarif --no-verification > trufflehog-results.sarif
+        uses: trufflesecurity/trufflehog@v3.97.9
+        with:
+          extra_args: --sarif --results=verified,unknown > trufflehog-results.sarif
+#        run: trufflehog filesystem . --sarif --no-verification > trufflehog-results.sarif
 
-#--results=verified,unknown
+#
         
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload secrets (TruffleHog)
