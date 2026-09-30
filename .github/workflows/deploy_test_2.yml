@@ -92,7 +92,7 @@ jobs:
                   - "6379"
   
               frontend:
-                image: frontend:lastest
+                image: frontend:latest
                 pull_policy: never
                 ports:
                   - "8080:8080"
@@ -117,15 +117,15 @@ jobs:
                   - adservice                
   
               productcatalogservice:
-                image: productcatalogservice:lastest
+                image: productcatalogservice:latest
                 pull_policy: never
   
               currencyservice:
-                image: currencyservice:lastest
+                image: currencyservice:latest
                 pull_policy: never
   
               cartservice:
-                image: cartservice:lastest
+                image: cartservice:latest
                 pull_policy: never
                 environment:
                   - REDIS_ADDR=redis-cart:6379
@@ -133,7 +133,7 @@ jobs:
                   - redis-cart
   
               recommendationservice:
-                image: recommendationservice:lastest
+                image: recommendationservice:latest
                 pull_policy: never
                 environment:
                   - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
@@ -141,11 +141,11 @@ jobs:
                   - productcatalogservice                
   
               adservice:
-                image: adservice:lastest
+                image: adservice:latest
                 pull_policy: never
   
               loadgenerator:
-                image: loadgenerator:lastest
+                image: loadgenerator:latest
                 pull_policy: never
                 environment:
                   - FRONTEND_ADDR=frontend:8080
@@ -153,19 +153,19 @@ jobs:
                   - frontend
   
               paymentservice:
-                image: paymentservice:lastest
+                image: paymentservice:latest
                 pull_policy: never
             
               shippingservice:
-                image: shippingservice:lastest
+                image: shippingservice:latest
                 pull_policy: never
             
               emailservice:
-                image: emailservice:lastest
+                image: emailservice:latest
                 pull_policy: never
             
               checkoutservice:
-                image: checkoutservice:lastest
+                image: checkoutservice:latest
                 pull_policy: never
                 environment:
                   - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
