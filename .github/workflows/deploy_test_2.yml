@@ -194,9 +194,9 @@ jobs:
             cd /root/microservices-demo
             
             # Загрузка tar-архивов в локальный Docker сервера
-            for f in images/*.tar; do
-              docker load -i "$f"
-            done
+            #for f in images/*.tar; do
+            #   docker load -i "$f"
+            #done
             
             # запуск
             docker compose up -d
