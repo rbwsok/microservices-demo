@@ -137,7 +137,7 @@ jobs:
             # Скачиваем проект
             if [ ! -d "$TARGET_DIR" ]; then
               mkdir -p "$(dirname "$TARGET_DIR")"
-              git clone https://github.com${{ github.repository }}.git "$TARGET_DIR"
+              git clone https://github.com/${{ github.repository }}.git "$TARGET_DIR"
               cd "$TARGET_DIR"
             else
               cd "$TARGET_DIR"
