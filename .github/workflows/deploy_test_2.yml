@@ -78,6 +78,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # redis скачиваетсяЮ остальные - локально
           script: |
             cd /root/microservices-demo
 
@@ -92,6 +93,7 @@ jobs:
   
               frontend:
                 image: frontend:lastest
+                image_pull_policy: never
                 ports:
                   - "8080:8080"
                 environment:
@@ -116,12 +118,15 @@ jobs:
   
               productcatalogservice:
                 image: productcatalogservice:lastest
+                image_pull_policy: never
   
               currencyservice:
                 image: currencyservice:lastest
+                image_pull_policy: never
   
               cartservice:
                 image: cartservice:lastest
+                image_pull_policy: never
                 environment:
                   - REDIS_ADDR=redis-cart:6379
                 depends_on:
@@ -129,6 +134,7 @@ jobs:
   
               recommendationservice:
                 image: recommendationservice:lastest
+                image_pull_policy: never
                 environment:
                   - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
                 depends_on:
@@ -136,9 +142,11 @@ jobs:
   
               adservice:
                 image: adservice:lastest
+                image_pull_policy: never
   
               loadgenerator:
                 image: loadgenerator:lastest
+                image_pull_policy: never
                 environment:
                   - FRONTEND_ADDR=frontend:8080
                 depends_on:
@@ -146,15 +154,19 @@ jobs:
   
               paymentservice:
                 image: paymentservice:lastest
+                image_pull_policy: never
             
               shippingservice:
                 image: shippingservice:lastest
+                image_pull_policy: never
             
               emailservice:
                 image: emailservice:lastest
+                image_pull_policy: never
             
               checkoutservice:
                 image: checkoutservice:lastest
+                image_pull_policy: never
                 environment:
                   - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
                   - CURRENCY_SERVICE_ADDR=currencyservice:7000
