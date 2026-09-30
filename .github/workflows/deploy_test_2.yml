@@ -25,9 +25,9 @@ jobs:
           docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
           
           # Сохраняем собранные образы в tar-архивы
-          docker save frontend:latest -o ./frontend.tar
-          docker save cartservice:latest -o ./cartservice.tar
-          docker save productcatalogservice:latest -o ./productcatalogservice.tar
+          docker save frontend:latest -o ./images/frontend.tar
+          docker save cartservice:latest -o ./images/cartservice.tar
+          docker save productcatalogservice:latest -o ./image/sproductcatalogservice.tar
 
       - name: Prepare
         uses: appleboy/ssh-action@v1.2.5
@@ -154,7 +154,7 @@ jobs:
             cd /root/microservices-demo
             
             # Загружаем все переданные tar-архивы в локальный Docker сервера
-            for f in *.tar; do
+            for f in images/*.tar; do
               docker load -i "$f"
             done
             
