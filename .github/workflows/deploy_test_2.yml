@@ -21,13 +21,13 @@ jobs:
           
           # Пример для нескольких ключевых сервисов (добавьте остальные по аналогии)
           docker buildx build --load -t frontend:latest ./src/frontend
-          #docker buildx build --load -t cartservice:latest ./src/cartservice/src
-          #docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
+          docker buildx build --load -t cartservice:latest ./src/cartservice/src
+          docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
           
           # Сохраняем собранные образы в tar-архивы
-          docker save boutique-frontend:latest -o ./frontend.tar
-          #docker save boutique-cartservice:latest -o ./cartservice.tar
-          #docker save boutique-productcatalogservice:latest -o ./productcatalogservice.tar
+          docker save frontend:latest -o ./frontend.tar
+          docker save cartservice:latest -o ./cartservice.tar
+          docker save productcatalogservice:latest -o ./productcatalogservice.tar
 
       - name: Prepare
         uses: appleboy/ssh-action@v1.2.5
