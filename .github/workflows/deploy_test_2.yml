@@ -48,7 +48,7 @@ jobs:
           docker save checkoutservice:latest -o ./images/checkoutservice.tar
       
       # Подготовка на стороне сервера
-      - name: Prepare server side
+      - name: Prepare server side 1
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -61,7 +61,25 @@ jobs:
               mkdir -p "$(dirname "$TARGET_DIR")"
             fi
 
-            cd "$TARGET_DIR"
+      # Копирование файлов на сервер
+      - name: Copy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "images/*.tar"
+          target: "/root/microservices-demo"
+
+      # Подготовка на стороне сервера
+      - name: Prepare server side 2
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd "/root/microservices-demo"
 
             cat <<EOF > docker-compose.yml
             version: '3.8'
@@ -152,16 +170,6 @@ jobs:
                   - shippingservice
                   - emailservice
             EOF
-
-      # Копирование файлов на сервер
-      - name: Copy files to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "images/*.tar"
-          target: "/root/microservices-demo"
 
       # Загрузка контейненров и запуск
       - name: Load images and run
