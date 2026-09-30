@@ -132,7 +132,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            TARGET_DIR="/root/apps/microservices-demo"
+            TARGET_DIR="/root/microservices-demo"
 
             # Скачиваем проект
             if [ ! -d "$TARGET_DIR" ]; then
