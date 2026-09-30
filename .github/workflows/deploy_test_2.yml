@@ -32,7 +32,7 @@ jobs:
           docker buildx build --load -t paymentservice:latest ./src/paymentservice
           docker buildx build --load -t shippingservice:latest ./src/shippingservice
           docker buildx build --load -t emailservice:latest ./src/emailservice
-          docker buildx build --load -t checkoutservice:latest ./src/checkoutservic              
+          docker buildx build --load -t checkoutservice:latest ./src/checkoutservice
           
           # Сжатие в tar
           docker save frontend:latest -o ./images/frontend.tar
