@@ -2,19 +2,15 @@ name: deploy test
 
 on:
   workflow_dispatch:
+jobs:
   ###############################################################
-  # Динамический анализ (DAST)
+  # Деплой
   dast:
     runs-on: ubuntu-24.04    
     steps:
       # Скачивание кода
       - name: Checkout Code
         uses: actions/checkout@v7
-
-      # После многочисленных экспериментов и чтения исходников, пришел к такому решению, чтобы не использовать kubernetes.
-      # Вручную создается docker-compose.yml и запускается через docker compose.
-      # Создается минимально необходимый список из служб, чтобы заработал frontend
-      # Именно frontend и тестируется с помощью owasp zap
 
       - name: Generate Docker Compose File
         run: |
@@ -23,57 +19,134 @@ on:
           services:
             redis-cart:
               image: redis:7-alpine
+              container_name: redis-cart
               ports:
                 - "6379"
-
-            productcatalogservice:
-              build:
-                context: ./src/productcatalogservice
-              ports:
-                - "3550:3550"
-
-            currencyservice:
-              build:
-                context: ./src/currencyservice
-              ports:
-                - "7000:7000"
-
-            cartservice:
-              build:
-                context: ./src/cartservice/src
-              ports:
-                - "7070:7070"
-              environment:
-                - REDIS_ADDR=redis-cart:6379
-              depends_on:
-                - redis-cart
 
             frontend:
               build:
                 context: ./src/frontend
+              container_name: frontend                
               ports:
                 - "8080:8080"
               environment:
                 - PORT=8080
                 - ENV_PLATFORM=local
-                # Перенаправляем обязательные gRPC сервисы на реальные контейнеры
                 - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
                 - CURRENCY_SERVICE_ADDR=currencyservice:7000
                 - CART_SERVICE_ADDR=cartservice:7070
-                # Остальные второстепенные сервисы пускаем на любой живой порт, чтобы не было паники
-                - RECOMMENDATION_SERVICE_ADDR=productcatalogservice:3550
-                - SHIPPING_SERVICE_ADDR=productcatalogservice:3550
-                - CHECKOUT_SERVICE_ADDR=productcatalogservice:3550
-                - AD_SERVICE_ADDR=productcatalogservice:3550
-                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:3550
+                - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
+                - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+                - AD_SERVICE_ADDR=adservice:9555
+                - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:8080
               depends_on:
                 - productcatalogservice
                 - currencyservice
                 - cartservice
+                - recommendationservice
+                - shippingservice
+                - checkoutservice
+                - adservice                
+
+            productcatalogservice:
+              build:
+                context: ./src/productcatalogservice
+              container_name: productcatalogservice                
+
+            currencyservice:
+              build:
+                context: ./src/currencyservice
+              container_name: currencyservice                
+
+            cartservice:
+              build:
+                context: ./src/cartservice/src
+              environment:
+                - REDIS_ADDR=redis-cart:6379
+              depends_on:
+                - redis-cart
+              container_name: cartservice                
+
+            recommendationservice:
+              build: ./src/recommendationservice
+              container_name: recommendationservice
+              environment:
+                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+              depends_on:
+                - productcatalogservice                
+
+            adservice:
+              build: ./src/adservice
+              container_name: adservice                
+
+            loadgenerator:
+              build: ./src/loadgenerator
+              container_name: loadgenerator
+              environment:
+                - FRONTEND_ADDR=frontend:8080
+              depends_on:
+                - frontend
+
+            paymentservice:
+              build: ./src/paymentservice
+              container_name: paymentservice
+          
+            shippingservice:
+              build: ./src/shippingservice
+              container_name: shippingservice
+          
+            emailservice:
+              build: ./src/emailservice
+              container_name: emailservice
+          
+            checkoutservice:
+              build: ./src/checkoutservice
+              container_name: checkoutservice
+              environment:
+                - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                - CART_SERVICE_ADDR=cartservice:7070
+                - PAYMENT_SERVICE_ADDR=paymentservice:50051
+                - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                - EMAIL_SERVICE_ADDR=emailservice:8080
+              depends_on:
+                - productcatalogservice
+                - currencyservice
+                - cartservice
+                - paymentservice
+                - shippingservice
+                - emailservice                
           EOF
       # Сборка и запуск докер образов с помощью docker compose
-      - name: Start frontend
+      - name: Deploy
         run: |
           docker compose up -d --build
           echo "Waiting for frontend"
           sleep 15
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            TARGET_DIR="/root/apps/microservices-demo"
+
+            # Скачиваем проект
+            if [ ! -d "$TARGET_DIR" ]; then
+              mkdir -p "$(dirname "$TARGET_DIR")"
+              git clone https://github.com{{ github.repository }}.git "$TARGET_DIR"
+              cd "$TARGET_DIR"
+            else
+              cd "$TARGET_DIR"
+              git fetch --all
+              git reset --hard origin/main
+            fi
+            
+            # Собираем изменившиеся контейнеры и запускаем проект в фоне
+            docker compose up --build -d
+            
+            # Очищаем старые неиспользуемые Docker-слои, чтобы не забивать диск сервера
+            docker image prune -f
