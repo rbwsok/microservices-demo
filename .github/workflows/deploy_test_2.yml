@@ -79,7 +79,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd "/root"
+            cd /root/microservices-demo
 
             cat <<EOF > docker-compose.yml
             version: '3.8'
@@ -185,8 +185,6 @@ jobs:
             for f in images/*.tar; do
               docker load -i "$f"
             done
-
-            cd /root
             
             # запуск
             docker compose up -d
