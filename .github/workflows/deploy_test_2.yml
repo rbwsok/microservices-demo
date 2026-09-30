@@ -25,9 +25,9 @@ jobs:
           docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
           
           # Сохраняем собранные образы в tar-архивы
-          docker save boutique-frontend:latest -o ./images/frontend.tar
-          docker save boutique-cartservice:latest -o ./images/cartservice.tar
-          docker save boutique-productcatalogservice:latest -o ./images/productcatalogservice.tar
+          docker save boutique-frontend:latest -o ./frontend.tar
+          docker save boutique-cartservice:latest -o ./cartservice.tar
+          docker save boutique-productcatalogservice:latest -o ./productcatalogservice.tar
 
       - name: Prepare
         uses: appleboy/ssh-action@v1.2.5
@@ -40,12 +40,9 @@ jobs:
 
             if [ ! -d "$TARGET_DIR" ]; then
               mkdir -p "$(dirname "$TARGET_DIR")"
-              git clone https://github.com/${{ github.repository }}.git "$TARGET_DIR"
               cd "$TARGET_DIR"
             else
               cd "$TARGET_DIR"
-              git fetch --all
-              git reset --hard origin/main
             fi
 
             cat <<EOF > docker-compose.yml
@@ -157,7 +154,7 @@ jobs:
             cd /root/microservices-demo
             
             # Загружаем все переданные tar-архивы в локальный Docker сервера
-            for f in images/*.tar; do
+            for f in *.tar; do
               docker load -i "$f"
             done
             
