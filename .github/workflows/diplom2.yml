@@ -124,36 +124,25 @@ jobs:
           fetch-depth: 0 # вся история
 
       # Проверка репозитория на секреты. trufflehog
+      # (trufflesecurity/trufflehog@ не вышло использовать из-за невозможности указать выходной файл)
       - name: Secrets searching (trufflehog)
         run: |
            curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
-           trufflehog filesystem . --sarif --results=verified,unknown > trufflehog-results.sarif
-           
-      #- name: Secrets searching (trufflehog)
-      #  uses: trufflesecurity/trufflehog@v3.97.9
-      #  with:
-      #    base: ""
-      #    head: ${{ github.ref_name }}
-      #    extra_args: --sarif --results=verified,unknown > trufflehog-results.sarif
-#        run: trufflehog filesystem . --sarif --no-verification > trufflehog-results.sarif
-#
- 
+           trufflehog filesystem . --sarif --results=verified,unknown > trufflehog-secrets-results.sarif
 
-
-        
       # Выгрузка результатов в GitHub Code Scanning
       - name: Upload secrets (TruffleHog)
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: trufflehog-results.sarif
+          sarif_file: trufflehog-secrets-results.sarif
           category: trufflehog
           
       # Сохранение отчета в CI Артефакты
       - name: Upload secrets to artifacts (TruffleHog)
         uses: actions/upload-artifact@v7
         with:
-          name: trufflehog-results
-          path: trufflehog-results.sarif
+          name: trufflehog-secrets-results
+          path: trufflehog-secrets-results.sarif
           retention-days: 7          
           
   ###############################################################
@@ -435,6 +424,13 @@ jobs:
           name: trivy-secrets-results
           path: ./reports
 
+      # Скачивание секретов из CI артефактов (TruffleHog)
+      - name: Download Secrets (Trivy)
+        uses: actions/download-artifact@v8
+        with:
+          name: trufflehog-secrets-results
+          path: ./reports
+
       # Скачивание ошибок конфигураций из CI артефактов
       - name: Download IaC (Trivy)
         uses: actions/download-artifact@v8
@@ -473,6 +469,13 @@ jobs:
           if grep -q "CRITICAL" ./reports/trivy-iac-results.sarif; then
             echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
             echo "::error::Релиз заблокирован! Обнаружены проблемы в конфигурации. (Trivy)"
+          else
+            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+          fi
+
+          if grep -q "CRITICAL" ./reports/trufflehog-secrets-results.sarif; then
+            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "::error::Релиз заблокирован! Обнаружены секреты в репозитории. (Trivy)"
           else
             echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
