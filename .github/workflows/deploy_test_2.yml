@@ -27,7 +27,7 @@ jobs:
           # Сохраняем собранные образы в tar-архивы
           docker save frontend:latest -o ./images/frontend.tar
           docker save cartservice:latest -o ./images/cartservice.tar
-          docker save productcatalogservice:latest -o ./image/sproductcatalogservice.tar
+          docker save productcatalogservice:latest -o ./images/sproductcatalogservice.tar
 
       - name: Prepare
         uses: appleboy/ssh-action@v1.2.5
@@ -157,9 +157,7 @@ jobs:
             for f in images/*.tar; do
               docker load -i "$f"
             done
-            
-            # Запускаем docker-compose (в docker-compose.yml вместо build: ... укажите image: boutique-frontend:latest и т.д.)
+                      
             docker compose up -d
             
-            # Очищаем архивные файлы, чтобы не занимать место
-            rm -rf images/
+            #rm -rf images/
