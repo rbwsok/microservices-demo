@@ -58,9 +58,8 @@ jobs:
         uses: trufflesecurity/trufflehog@v3.97.9
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --sarif
+          head: ${{ github.ref_name }}
+          extra_args: --sarif --results=verified,unknown
         
       # Проверка репозитория на секреты. Trivy
       - name: Secrets searching (Trivy)
