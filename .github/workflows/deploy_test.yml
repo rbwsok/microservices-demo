@@ -146,7 +146,7 @@ jobs:
             fi
             
             # Собираем изменившиеся контейнеры и запускаем проект в фоне
-            docker compose up --build -d
+            docker compose up -d --build
             
             # Очищаем старые неиспользуемые Docker-слои, чтобы не забивать диск сервера
             docker image prune -f
