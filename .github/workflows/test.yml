@@ -19,11 +19,11 @@ jobs:
     steps:
       - name: step1
         run: |
-          echo "step 1"
+          echo "test1.step 1"
           echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
       - name: step2
         run: |
-          echo "step 2"
+          echo "test1.step 2"
           echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
   test2:
     runs-on: ubuntu-latest    
