@@ -358,6 +358,8 @@ jobs:
   security_gateway:
     runs-on: ubuntu-24.04
     needs: [build_and_scan_images, dast]
+    outputs:
+        gate_status: ${{ steps.Verify.outputs.GATE_STATUS }}       
     steps:
       # Скачивание результатов SAST из CI артефактов (Trivy)
       - name: Download Artifact (Trivy)
@@ -390,41 +392,35 @@ jobs:
       # Проверка на наличие уязвимостей
       # проверка происходит через поиск слова CRITICAL в тексте отчетов. :)
       - name: Verify
+        id: verify
         run: |
           echo "Проверка критических уязвимостей"
+          echo "GATE_STATUS=PASSED" >> $GITHUB_OUTPUT
           
           # Проверяем файлы отчетов SAST на наличие критических уязвимостей
           if grep -q "CRITICAL" ./reports/trivy-sast-results.sarif; then
-            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "GATE_STATUS=FAILED" >> $GITHUB_OUTPUT
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Trivy)"
-          else
-            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
           if grep -q "CRITICAL" ./reports/semgrep-sast-results.sarif; then
-            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "GATE_STATUS=FAILED" >> $GITHUB_OUTPUT
             echo "::error::Релиз заблокирован! Обнаружены критические уязвимости (CRITICAL) в коде или зависимостях. (Semgrep)"
-          else
-            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
           if grep -q "CRITICAL" ./reports/trivy-secrets-results.sarif; then
-            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
-            echo "::error::Релиз заблокирован! Обнаружены секреты в репозитории. (Trivy)"
-          else
-            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
+            echo "GATE_STATUS=FAILED" >> $GITHUB_OUTPUT
+            echo "::error::Релиз заблокирован! Обнаружены секреты в репозитории. (Trivy)"           
           fi
 
           if grep -q "CRITICAL" ./reports/trivy-iac-results.sarif; then
-            echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
+            echo "GATE_STATUS=FAILED" >> $GITHUB_OUTPUT
             echo "::error::Релиз заблокирован! Обнаружены проблемы в конфигурации. (Trivy)"
-          else
-            echo "GATE_STATUS=PASSED" >> $GITHUB_ENV
           fi
 
       # Создание отчета
       - name: Create report
-        if: env.GATE_STATUS == 'FAILED'
+        if: steps.verify.outputs.gate_status == 'FAILED'
         run: |
           echo "### В резкльтате проверки кода были найдены критические уязвимости" > summary.md
           echo "- Время обновления: %NOW%" >> summary.md
@@ -432,7 +428,7 @@ jobs:
           
       # Комментарии в PR
       - name: Update
-        if: env.GATE_STATUS == 'FAILED'
+        if: steps.verify.outputs.gate_status == 'FAILED'
         uses: mshick/add-pr-comment@v3
         with:
           message-id: qa-summary-report
@@ -442,7 +438,7 @@ jobs:
            
      # Блокировка выполнения
       - name: Block
-        if: env.GATE_STATUS == 'FAILED'
+        if: steps.verify.outputs.gate_status == 'FAILED'
         run: |
           echo "Остановка пайплайна из-за критических уязвимостей"
           exit 1            
