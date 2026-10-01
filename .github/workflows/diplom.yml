@@ -456,3 +456,200 @@ jobs:
       - name: Deploy
         run: |
           echo "Проверки пройдены - делаем деплой"
+
+      # Скачивание кода
+      - name: Checkout Code
+        uses: actions/checkout@v7
+      
+      # Настройка docker buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Сборка контейнеров и сжатие в tar
+      - name: Build and Export Images
+        run: |
+          mkdir -p ./images
+          
+          # сборка контейнеров
+          docker buildx build --load -t frontend:latest ./src/frontend
+          docker buildx build --load -t cartservice:latest ./src/cartservice/src
+          docker buildx build --load -t productcatalogservice:latest ./src/productcatalogservice
+          docker buildx build --load -t currencyservice:latest ./src/currencyservice
+          docker buildx build --load -t recommendationservice:latest ./src/recommendationservice
+          docker buildx build --load -t adservice:latest ./src/adservice
+          docker buildx build --load -t loadgenerator:latest ./src/loadgenerator
+          docker buildx build --load -t paymentservice:latest ./src/paymentservice
+          docker buildx build --load -t shippingservice:latest ./src/shippingservice
+          docker buildx build --load -t emailservice:latest ./src/emailservice
+          docker buildx build --load -t checkoutservice:latest ./src/checkoutservice
+          
+          # Сжатие в tar
+          docker save frontend:latest -o ./images/frontend.tar
+          docker save cartservice:latest -o ./images/cartservice.tar
+          docker save productcatalogservice:latest -o ./images/sproductcatalogservice.tar
+          docker save currencyservice:latest -o ./images/currencyservice.tar
+          docker save recommendationservice:latest -o ./images/recommendationservice.tar
+          docker save adservice:latest -o ./images/adservice.tar
+          docker save loadgenerator:latest -o ./images/loadgenerator.tar
+          docker save paymentservice:latest -o ./images/paymentservice.tar
+          docker save shippingservice:latest -o ./images/shippingservice.tar
+          docker save emailservice:latest -o ./images/emailservice.tar
+          docker save checkoutservice:latest -o ./images/checkoutservice.tar
+      
+      # Подготовка на стороне сервера 1 (создание целевой папки)
+      - name: Prepare server side 1
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            TARGET_DIR="/root/microservices-demo"
+
+            if [ ! -d "$TARGET_DIR" ]; then
+              mkdir -p "$(dirname "$TARGET_DIR")"
+            fi
+
+      # Копирование файлов на сервер
+      - name: Copy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "images/*.tar"
+          target: "/root/microservices-demo"
+
+      # Подготовка на стороне сервера 2 (создание docker-compose.yml)
+      - name: Prepare server side 2
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # redis скачивается из dockerhub. остальные контейнеры - локальные
+          script: |
+            cd /root/microservices-demo
+
+            cat <<EOF > docker-compose.yml
+            version: '3.8'
+            services:
+              redis-cart:
+                image: redis:7-alpine
+                container_name: redis-cart
+                ports:
+                  - "6379"
+  
+              frontend:
+                image: frontend:latest
+                pull_policy: never
+                ports:
+                  - "8080:8080"
+                environment:
+                  - PORT=8080
+                  - ENV_PLATFORM=local
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - RECOMMENDATION_SERVICE_ADDR=recommendationservice:8080
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+                  - AD_SERVICE_ADDR=adservice:9555
+                  - SHOPPING_ASSISTANT_SERVICE_ADDR=productcatalogservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - recommendationservice
+                  - shippingservice
+                  - checkoutservice
+                  - adservice                
+  
+              productcatalogservice:
+                image: productcatalogservice:latest
+                pull_policy: never
+  
+              currencyservice:
+                image: currencyservice:latest
+                pull_policy: never
+  
+              cartservice:
+                image: cartservice:latest
+                pull_policy: never
+                environment:
+                  - REDIS_ADDR=redis-cart:6379
+                depends_on:
+                  - redis-cart
+  
+              recommendationservice:
+                image: recommendationservice:latest
+                pull_policy: never
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                depends_on:
+                  - productcatalogservice                
+  
+              adservice:
+                image: adservice:latest
+                pull_policy: never
+  
+              loadgenerator:
+                image: loadgenerator:latest
+                pull_policy: never
+                environment:
+                  - FRONTEND_ADDR=frontend:8080
+                depends_on:
+                  - frontend
+  
+              paymentservice:
+                image: paymentservice:latest
+                pull_policy: never
+            
+              shippingservice:
+                image: shippingservice:latest
+                pull_policy: never
+            
+              emailservice:
+                image: emailservice:latest
+                pull_policy: never
+            
+              checkoutservice:
+                image: checkoutservice:latest
+                pull_policy: never
+                environment:
+                  - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+                  - CURRENCY_SERVICE_ADDR=currencyservice:7000
+                  - CART_SERVICE_ADDR=cartservice:7070
+                  - PAYMENT_SERVICE_ADDR=paymentservice:50051
+                  - SHIPPING_SERVICE_ADDR=shippingservice:50051
+                  - EMAIL_SERVICE_ADDR=emailservice:8080
+                depends_on:
+                  - productcatalogservice
+                  - currencyservice
+                  - cartservice
+                  - paymentservice
+                  - shippingservice
+                  - emailservice
+            EOF
+
+      # Загрузка контейненров в docker и запуск
+      - name: Load images and run
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/microservices-demo
+            
+            # Загрузка tar-архивов в локальный Docker сервера
+            for f in images/*.tar; do
+               docker load -i "$f"
+            done
+            
+            # запуск
+            docker compose up -d
+            
+            # удаление tar файлов
+            rm -rf images/
+
