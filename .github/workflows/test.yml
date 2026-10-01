@@ -13,14 +13,32 @@ permissions:
   security-events: write
 
 jobs:
-  test:
+  test1:
     runs-on: ubuntu-latest    
     if: always()
     steps:
       - name: step1
         run: |
-          echo "test 1"
+          echo "step 1"
           echo "GATE_STATUS=FAILED" >> $GITHUB_ENV
       - name: step2
         run: |
+          echo "step 2"
           echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
+  test2:
+    runs-on: ubuntu-latest    
+    if: always()
+    steps:
+      - name: Block
+        if: env.GATE_STATUS == 'FAILED'
+        run: |
+          echo "test2. Остановка пайплайна из-за критических уязвимостей"
+          exit 1      
+
+  test3:
+    runs-on: ubuntu-latest    
+    steps:
+      - name: test
+        run: |
+          echo "test3"
+
