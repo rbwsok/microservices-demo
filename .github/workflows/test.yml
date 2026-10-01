@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   test1:
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-latest
     if: always()
     steps:
       - name: step1
@@ -27,6 +27,7 @@ jobs:
           echo "GATE_STATUS: ${{ env.GATE_STATUS }}"            
   test2:
     runs-on: ubuntu-latest    
+    needs: test1
     if: always()
     steps:
       - name: Block
@@ -37,6 +38,7 @@ jobs:
 
   test3:
     runs-on: ubuntu-latest    
+    needs: test2
     steps:
       - name: test
         run: |
